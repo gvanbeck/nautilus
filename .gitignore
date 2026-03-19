@@ -1,0 +1,6 @@
+# Git submodule metadata from sparse-cloned noto-emoji
+assets/emoji/.git/
+
+
+# Go build cache
+/tmp/
