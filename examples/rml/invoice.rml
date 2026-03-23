@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Voorbeeld RML-factuur voor de nautilus PDF-bibliotheek.
+  Genereer met:
+    go run ./examples/rml -fontdir /Library/Fonts -out invoice.pdf
+-->
+<document>
+
+  <!-- ── Lettertypen ───────────────────────────────────────────────────── -->
+  <docinit>
+    <registerTTFont fontName="regular"     fontFile="Lato-Medium.ttf"/>
+    <registerTTFont fontName="regularBold" fontFile="Lato-Black.ttf"/>
+  </docinit>
+
+  <!-- ── Pagina-indeling ───────────────────────────────────────────────── -->
+  <template pageSize="A4"
+            leftMargin="55" rightMargin="55"
+            topMargin="65"  bottomMargin="62"
+            title="Factuur 2026-0042"
+            author="Nautilus Systems BV"
+            subject="Factuur">
+    <pageTemplate id="main">
+
+      <!-- Vaste koptekst en voettekst op elke pagina -->
+      <pageGraphics>
+        <saveState/>
+        <setFont name="regular" size="8"/>
+        <fill color="gray"/>
+        <lines>55 790 540 790</lines>
+        <drawString x="55" y="793">Nautilus Systems BV  ·  Havenstraat 42  ·  2000 Antwerpen</drawString>
+        <drawRightString x="540" y="793">Factuur #2026-0042</drawRightString>
+        <lines>55 52 540 52</lines>
+        <drawCentredString x="297" y="41">Pagina %p</drawCentredString>
+        <restoreState/>
+      </pageGraphics>
+
+      <!-- x1/y1 zijn linkerbenedenhoek (PDF-coördinaten) -->
+      <frame id="body" x1="55" y1="62" width="485" height="720"/>
+    </pageTemplate>
+  </template>
+
+  <!-- ── Stijlblad ─────────────────────────────────────────────────────── -->
+  <stylesheet>
+
+    <paraStyle name="title"
+               fontName="regularBold" fontSize="22"
+               spaceAfter="6"/>
+
+    <paraStyle name="subtitle"
+               fontName="regular" fontSize="11"
+               textColor="gray" spaceAfter="4"/>
+
+    <paraStyle name="body"
+               fontName="regular" fontSize="11"
+               spaceAfter="5"/>
+
+    <paraStyle name="h2"
+               fontName="regularBold" fontSize="13"
+               spaceBefore="14" spaceAfter="6"/>
+
+    <paraStyle name="small"
+               fontName="regular" fontSize="9"
+               textColor="gray" spaceAfter="3"/>
+
+    <!-- Tabelstijl: navy header, lichtgrijze grid, afwisselend wit/lichtblauw -->
+    <blockTableStyle id="invoice">
+      <!-- Kaders: volledige grid (lichtgrijs) + zwarte buitenrand -->
+      <lineStyle kind="GRID"    colorName="lightgray" thickness="0.4"
+                 start="0,0" stop="-1,-1"/>
+      <lineStyle kind="OUTLINE" colorName="navy"      thickness="1.2"
+                 start="0,0" stop="-1,-1"/>
+
+      <!-- Header-rij (rij 0): navy achtergrond, witte tekst, vetgedrukt -->
+      <blockBackground  colorName="navy"  start="0,0" stop="-1,0"/>
+      <blockTextColor   colorName="white" start="0,0" stop="-1,0"/>
+      <blockFont        name="regularBold" start="0,0" stop="-1,0"/>
+
+      <!-- Totaalrij (laatste rij): lichtblauwe achtergrond, vetgedrukt -->
+      <blockBackground  colorName="#e8f0fe" start="0,-1" stop="-1,-1"/>
+      <blockFont        name="regularBold"  start="0,-1" stop="-1,-1"/>
+
+      <!-- Numerieke kolommen rechts uitlijnen (kolommen 2, 3, 4) -->
+      <blockAlignment value="center" start="2,0" stop="2,-1"/>
+      <blockAlignment value="right"  start="3,0" stop="4,-1"/>
+
+      <!-- Verticale centrering in alle cellen -->
+      <blockValign value="middle" start="0,0" stop="-1,-1"/>
+    </blockTableStyle>
+
+    <blockTableStyle id="meta">
+      <lineStyle kind="OUTLINE" colorName="lightgray" thickness="0.5"
+                 start="0,0" stop="-1,-1"/>
+      <blockBackground colorName="#f8f8f8" start="0,0" stop="0,-1"/>
+      <blockFont name="regularBold" start="0,0" stop="0,-1"/>
+      <blockValign value="middle" start="0,0" stop="-1,-1"/>
+    </blockTableStyle>
+
+  </stylesheet>
+
+  <!-- ── Inhoud ────────────────────────────────────────────────────────── -->
+  <story>
+
+    <!-- Briefhoofd -->
+    <para style="title">Nautilus Systems BV</para>
+    <para style="subtitle">Havenstraat 42 · 2000 Antwerpen · facturen@nautilus.be</para>
+    <spacer length="18"/>
+
+    <!-- Factuurgegevens in twee kolommen -->
+    <para style="h2">Factuur #2026-0042</para>
+
+    <blockTable colWidths="100,385" rowHeights="22,22,22" style="meta">
+      <tr>
+        <td>Datum</td>
+        <td>23 maart 2026</td>
+      </tr>
+      <tr>
+        <td>Klant</td>
+        <td>Gert Van Becker · Keizerslaan 11 · 1000 Brussel</td>
+      </tr>
+      <tr>
+        <td>BTW-nr.</td>
+        <td>BE 0123.456.789</td>
+      </tr>
+    </blockTable>
+
+    <spacer length="18"/>
+
+    <!-- Factuurlijnen -->
+    <para style="h2">Factuurlijnen</para>
+
+    <blockTable colWidths="55,220,40,80,90" rowHeights="24,22,22,22,22,22,22,24"
+                style="invoice" spaceAfter="10">
+
+      <!-- Header (rij 0 → navy via blockTableStyle) -->
+      <tr height="24">
+        <td>Ref.</td>
+        <td>Omschrijving</td>
+        <td>Aantal</td>
+        <td>Eenheidsprijs</td>
+        <td>Subtotaal</td>
+      </tr>
+
+      <!-- Datarijen -->
+      <tr>
+        <td>A-001</td>
+        <td>Mechanisch toetsenbord, TKL, Cherry MX Brown</td>
+        <td>2</td>
+        <td>€ 89,95</td>
+        <td>€ 179,90</td>
+      </tr>
+      <tr bg="#eef4ff">
+        <td>A-002</td>
+        <td>27" 4K IPS-monitor, 144 Hz, USB-C</td>
+        <td>1</td>
+        <td>€ 549,00</td>
+        <td>€ 549,00</td>
+      </tr>
+      <tr>
+        <td>B-010</td>
+        <td>USB-C naar DisplayPort kabel, 2 m</td>
+        <td>3</td>
+        <td>€ 14,99</td>
+        <td>€ 44,97</td>
+      </tr>
+      <tr bg="#eef4ff">
+        <td>B-011</td>
+        <td>Draadloze muis, ergonomisch, oplaadbaar</td>
+        <td>5</td>
+        <td>€ 34,50</td>
+        <td>€ 172,50</td>
+      </tr>
+      <tr>
+        <td>C-003</td>
+        <td>Laptopstandaard, aluminium, verstelbare hoogte</td>
+        <td>2</td>
+        <td>€ 49,00</td>
+        <td>€ 98,00</td>
+      </tr>
+      <tr bg="#eef4ff">
+        <td>C-007</td>
+        <td>Bureau-kabelmanagement lade, zwart</td>
+        <td>4</td>
+        <td>€ 18,75</td>
+        <td>€ 75,00</td>
+      </tr>
+
+      <!-- Totaalrij (laatste rij → lichtblauw + vet via blockTableStyle) -->
+      <tr height="24">
+        <td colspan="3"></td>
+        <td>Subtotaal (excl. btw)</td>
+        <td>€ 1.119,37</td>
+      </tr>
+    </blockTable>
+
+    <!-- Samenvatting -->
+    <blockTable colWidths="390,95" rowHeights="20,20,22" style="meta">
+      <tr>
+        <td halign="right">Subtotaal (excl. btw)</td>
+        <td halign="right">€ 1.119,37</td>
+      </tr>
+      <tr>
+        <td halign="right">BTW 21%</td>
+        <td halign="right">€ 235,07</td>
+      </tr>
+      <tr>
+        <td halign="right" bold="1">Totaal te betalen (incl. btw)</td>
+        <td halign="right" bold="1" textColor="navy">€ 1.354,44</td>
+      </tr>
+    </blockTable>
+
+    <spacer length="24"/>
+
+    <!-- Betalingsinstructies -->
+    <para style="h2">Betaling</para>
+    <para style="body">Gelieve het verschuldigd bedrag te storten op rekening
+BE12 3456 7890 1234 (BIC: NAUTBE22) met vermelding van factuurnummer
+2026-0042 binnen 30 dagen na factuurdatum.</para>
+    <spacer length="6"/>
+    <para style="small">Nautilus Systems BV · BTW BE 0987.654.321 · RPR Antwerpen</para>
+
+  </story>
+
+</document>

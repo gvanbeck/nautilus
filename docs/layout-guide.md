@@ -25,6 +25,7 @@ verdeelt die inhoud automatisch over frames en pagina's.
 11. [PageTemplate](#11-pagetemplate)
 12. [DocTemplate en Build](#12-doctemplate-en-build)
 13. [Pagina-decorators (headers en footers)](#13-pagina-decorators-headers-en-footers)
+   - [OnPage versus OnPageEnd](#onpage-versus-onpageend)
 14. [Template wisselen](#14-template-wisselen)
 15. [Meerkoloms-layout](#15-meerkoloms-layout)
 16. [Foutopsporing met ShowBoundary](#16-foutopsporing-met-showboundary)
@@ -82,6 +83,29 @@ type Flowable interface {
 
 De motor roept altijd eerst `Wrap` aan (voor meting), daarna `Draw` (voor rendering).
 `Split` wordt alleen aangeroepen als een flowable niet past in de resterende ruimte.
+
+`MinWidth` geeft de absolute minimale breedte aan die de flowable nodig heeft.
+Momenteel gebruikt de motor dit als controlegetal; als een frame smaller is dan
+`MinWidth`, wordt de flowable als niet-plaatsbaar beschouwd.  Voor de meeste
+elementen is `0` de juiste waarde.
+
+### ActionFlowable
+
+`ActionFlowable` is een sub-interface van `Flowable` voor onzichtbare,
+nul-hoge elementen die de motor sturen in plaats van inhoud te renderen.
+Ingebouwde voorbeelden: `PageBreak`, `FrameBreak`, `CondPageBreak`,
+`NextPageTemplate`.
+
+```go
+type ActionFlowable interface {
+    Flowable
+    apply(doc *DocTemplate)
+}
+```
+
+> **Let op:** `apply` is ongeëxporteerd.  U kunt geen eigen `ActionFlowable`
+> implementeren buiten het `layout`-pakket.  Voor aangepaste paginabesturing
+> kunt u de ingebouwde acties combineren of `OnPage`/`OnPageEnd` gebruiken.
 
 ### LayoutFrame
 
@@ -215,6 +239,35 @@ doc.RegisterFont("bold",    "NotoSans-Bold.ttf")
 doc.RegisterFont("italic",  "NotoSans-Italic.ttf")
 
 doc.SetFont("regular", 12) // activeer vóór Build
+```
+
+### Pagina- en inhoudsgebied-helpers
+
+`pdf.Document` biedt hulpmethoden om pagina- en margegegevens op te vragen
+zonder handmatige rekensom:
+
+```go
+doc.PageWidth()       // paginabreedte in pt
+doc.PageHeight()      // paginahoogte in pt
+doc.PageCount()       // aantal pagina's na Build (bruikbaar in OnPageEnd)
+
+doc.ContentX()        // linkerrand van het inhoudsgebied (= leftMargin)
+doc.ContentY()        // bovenrand van het inhoudsgebied (= topMargin)
+doc.ContentWidth()    // breedte van het inhoudsgebied
+doc.ContentHeight()   // hoogte van het inhoudsgebied
+doc.ContentRightX()   // rechterrand van het inhoudsgebied
+doc.ContentBottomY()  // onderrand van het inhoudsgebied
+```
+
+Gebruik deze methoden bij het definiëren van frames:
+
+```go
+frame := &layout.LayoutFrame{
+    X:      doc.ContentX(),
+    Y:      doc.ContentY(),
+    Width:  doc.ContentWidth(),
+    Height: doc.ContentHeight(),
+}
 ```
 
 In een `ParagraphStyle` schakelt `FontName` automatisch naar het juiste lettertype
@@ -772,6 +825,33 @@ tmpl := &layout.PageTemplate{
 }
 ```
 
+### OnPage versus OnPageEnd
+
+| Decorator  | Wordt aangeroepen | Typisch gebruik |
+|------------|-------------------|-----------------|
+| `OnPage`   | Direct na `AddPage` (vóór inhoud) | Koptekst, watermerk, framecontouren |
+| `OnPageEnd`| Net vóór paginaafsluiting (ná inhoud) | Voettekst, paginanummer, dynamische informatie |
+
+```go
+tmpl := &layout.PageTemplate{
+    ID:     "main",
+    Frames: []*layout.LayoutFrame{frame},
+    OnPage: func(d *pdf.Document, pageNum int) {
+        // Koptekst — getekend vóór de inhoud van de pagina
+        d.SetFont("regular", 8)
+        d.WriteLine("Mijn Document", margin, margin+10)
+    },
+    OnPageEnd: func(d *pdf.Document, pageNum int) {
+        // Voettekst — getekend ná de inhoud van de pagina
+        footerY := d.PageHeight() - margin + 8
+        d.SetFont("regular", 8)
+        num := fmt.Sprintf("Pagina %d", pageNum)
+        w, _ := d.MeasureText(num)
+        d.WriteLine(num, d.PageWidth()-margin-w, footerY)
+    },
+}
+```
+
 ### Eerste pagina overslaan
 
 ```go
@@ -1084,12 +1164,32 @@ of `Split` correct werkt voor aangepaste flowables.
 
 ### Hoe voeg ik "Pagina X van Y" toe aan de voettekst?
 
-Het standaard `pdf.Document` ondersteunt dit via de twee-pass `Build`-methode.
-Gebruik de `doc.Build(func(){...})`-aanpak in combinatie met `doc.SetFooter` in
-plaats van de `DocTemplate` om deze functie te gebruiken.
+`DocTemplate` biedt geen ingebouwde twee-pass rendering.  Er zijn twee
+praktische oplossingen:
 
-Als u de `DocTemplate` gebruikt, kunt u het totale aantal pagina's vooraf instellen
-(als dat bekend is) of na afloop via een tweede opbouw berekenen.
+**Optie 1 — Totaal vooraf bekend of handmatig berekend:**
+
+```go
+var totalPages int  // bepaal dit vooraf als het document een vaste lengte heeft
+
+tmpl.OnPageEnd = func(d *pdf.Document, pageNum int) {
+    label := fmt.Sprintf("Pagina %d van %d", pageNum, totalPages)
+    // ... teken label in voettekst
+}
+```
+
+**Optie 2 — Totaal na `Build` beschikbaar:**
+
+```go
+dt.Build(story)                       // genereer het document
+total := doc.PageCount()              // lees het totale aantal pagina's
+
+// Teken paginanummers handmatig in een tweede stap, of
+// gebruik totaal als geheugensteuntje in een volgende versie van het document.
+```
+
+Als het totale paginatelling niet nodig is, volstaat `Pagina %d`
+met alleen `pageNum` in `OnPageEnd`.
 
 ---
 
@@ -1151,6 +1251,20 @@ hersteld.  Zorg dat elke `ParagraphStyle` een `FontName` en `FontSize` heeft.
 | `NewDocTemplate(doc)` | Maak een nieuwe motor aan |
 | `(dt) AddPageTemplate(pt)` | Registreer een template |
 | `(dt) Build(story)` | Verwerk de story en genereer het PDF |
+
+### pdf.Document — pagina-helpers
+
+| Methode | Beschrijving |
+|---------|-------------|
+| `PageWidth()` | Paginabreedte in pt |
+| `PageHeight()` | Paginahoogte in pt |
+| `PageCount()` | Aantal pagina's (beschikbaar na `Build`) |
+| `ContentX()` | Linkerrand van het inhoudsgebied (= leftMargin) |
+| `ContentY()` | Bovenrand van het inhoudsgebied (= topMargin) |
+| `ContentWidth()` | Breedte van het inhoudsgebied |
+| `ContentHeight()` | Hoogte van het inhoudsgebied |
+| `ContentRightX()` | Rechterrand van het inhoudsgebied |
+| `ContentBottomY()` | Onderrand van het inhoudsgebied |
 
 ### ParagraphStyle — snel overzicht
 

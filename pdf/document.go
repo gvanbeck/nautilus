@@ -3,6 +3,7 @@ package pdf
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gvanbeck/nautilus/pdf/emoji"
 	"github.com/signintech/gopdf"
@@ -257,6 +258,19 @@ func (d *Document) GetX() float64 {
 // GetY returns the current vertical cursor position in points.
 func (d *Document) GetY() float64 {
 	return d.pdf.GetY()
+}
+
+// SetInfo sets the PDF document information dictionary (metadata).
+// Fields left empty are omitted from the PDF.
+func (d *Document) SetInfo(title, author, subject, creator string) {
+	d.pdf.SetInfo(gopdf.PdfInfo{
+		Title:        title,
+		Author:       author,
+		Subject:      subject,
+		Creator:      creator,
+		Producer:     "nautilus",
+		CreationDate: time.Now(),
+	})
 }
 
 // Save writes the complete PDF to the file at path, creating or truncating it.

@@ -156,6 +156,11 @@ type TableConfig struct {
 	// ContinuationY is the Y position on continuation pages where the table
 	// resumes after a page overflow.  Defaults to cfg.Y when 0.
 	ContinuationY float64
+
+	// RepeatRows is the number of leading rows to repeat at the top of each
+	// continuation page after a page overflow.  Use this for header rows.
+	// Defaults to 0 (no repetition).
+	RepeatRows int
 }
 
 // tableWidth returns the total width of the table (sum of all column widths).
@@ -319,6 +324,15 @@ func (t *Table) Draw() error {
 			curY = contY
 			segTopY = curY
 			isFirst = false
+
+			// Re-render header rows on the new page.
+			if rr := t.cfg.RepeatRows; rr > 0 && rr <= len(t.rows) && !t.doc.countingMode {
+				repeatH := sumF(rowH[0:rr])
+				if err := t.renderRowRange(placed, rowH, colX, curY, 0, rr-1); err != nil {
+					return err
+				}
+				curY += repeatH
+			}
 		}
 
 		if t.doc.countingMode {
@@ -747,6 +761,67 @@ func (t *Table) drawSegmentBorder(topY, height float64, isFirst, isLast bool) er
 	seg.Right = b.Right
 
 	return t.doc.DrawBorder(t.cfg.X, topY, t.cfg.tableWidth(), height, seg)
+}
+
+// renderRowRange renders the cells in rows [startRow, endRow] (inclusive) at
+// the given topY position.  Used to re-draw header rows after page overflow.
+func (t *Table) renderRowRange(placed []placedCell, rowH []float64, colX []float64, topY float64, startRow, endRow int) error {
+	// Collect cells that start within the range.
+	var cells []placedCell
+	for _, pc := range placed {
+		if pc.row >= startRow && pc.row <= endRow {
+			cells = append(cells, pc)
+		}
+	}
+
+	// Build per-row Y positions relative to topY.
+	rowY := make(map[int]float64, endRow-startRow+1)
+	y := topY
+	for r := startRow; r <= endRow; r++ {
+		rowY[r] = y
+		y += rowH[r]
+	}
+
+	// Pass 1: backgrounds.
+	for _, pc := range cells {
+		style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
+		if style.Background == nil {
+			continue
+		}
+		cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
+		t.doc.pdf.SetFillColor(style.Background.R, style.Background.G, style.Background.B)
+		t.doc.pdf.RectFromUpperLeftWithStyle(colX[pc.col], rowY[pc.row], pc.width, cellH, "F")
+	}
+	// Pass 2: text.
+	for _, pc := range cells {
+		style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
+		cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
+		contentX := colX[pc.col] + style.Padding.Left
+		contentY := rowY[pc.row] + style.Padding.Top
+		contentW := pc.width - style.Padding.Left - style.Padding.Right
+		if fn, fs := t.effectiveFont(style); fn != "" {
+			t.doc.SetFont(fn, fs) //nolint:errcheck
+		}
+		if style.TextColor != nil {
+			t.doc.SetTextColor(style.TextColor.R, style.TextColor.G, style.TextColor.B)
+		} else {
+			t.doc.SetTextColor(0, 0, 0)
+		}
+		if pc.cell.Text != "" && contentW > 0 {
+			if err := t.renderCellText(pc.cell.Text, contentX, contentY, contentW, cellH, style); err != nil {
+				return err
+			}
+		}
+	}
+	// Pass 3: borders.
+	for _, pc := range cells {
+		style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
+		cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
+		if err := t.doc.DrawBorder(colX[pc.col], rowY[pc.row], pc.width, cellH, style.Border); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // renderCellText renders text within a cell's content area, applying both

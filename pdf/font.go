@@ -86,6 +86,12 @@ func (d *Document) SetFont(name string, size float64) error {
 	return nil
 }
 
+// CurrentFontSize returns the currently active font size in points.
+// Returns 0 when no font has been set yet.
+func (d *Document) CurrentFontSize() (float64, bool) {
+	return d.fontSize, d.fontSize > 0
+}
+
 // MeasureText returns the width in points that text would occupy when rendered
 // with the currently active font and size.  A font must be set before calling
 // this method.
