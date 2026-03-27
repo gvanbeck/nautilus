@@ -7,6 +7,40 @@ import (
 	htmlpkg "github.com/gvanbeck/nautilus/pdf/html"
 )
 
+// ─── Inline HTML span rendering ─────────────────────────────────────────────
+
+// WriteHTMLSpans renders a slice of html.Span values inline starting at (x, y).
+//
+// For each span fontFor is called to select a registered font name based on
+// the span's Style (Bold, Italic, Monospace). The text is drawn with
+// doc.WriteLine and, where the Style indicates it, a strikethrough or
+// underline decoration is drawn as a thin horizontal line immediately
+// afterwards.
+//
+// The function returns the X position after the last span so the caller can
+// continue placing content on the same line.
+func (d *Document) WriteHTMLSpans(spans []htmlpkg.Span, fontFor func(htmlpkg.Style) string, fontSize, x, y float64) (float64, error) {
+	for _, sp := range spans {
+		if err := d.SetFont(fontFor(sp.Style), fontSize); err != nil {
+			return x, err
+		}
+		endX, err := d.WriteLine(sp.Text, x, y)
+		if err != nil {
+			return x, err
+		}
+		if sp.Style.Strikethrough {
+			lineY := y + fontSize*0.35
+			d.DrawLine(x, lineY, endX, lineY, 0.8, ColorBlack)
+		}
+		if sp.Style.Underline {
+			lineY := y + fontSize*0.85
+			d.DrawLine(x, lineY, endX, lineY, 0.7, ColorBlack)
+		}
+		x = endX
+	}
+	return x, nil
+}
+
 // ─── Options ────────────────────────────────────────────────────────────────
 
 // HtmlTableOptions controls how a parsed HtmlTable is converted to a pdf.Table.

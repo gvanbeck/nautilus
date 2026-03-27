@@ -194,6 +194,17 @@ type TableConfig struct {
 	// continuation page after a page overflow.  Use this for header rows.
 	// Defaults to 0 (no repetition).
 	RepeatRows int
+
+	// MinOrphanRows prevents header rows from being stranded alone at the
+	// bottom of a page.  When RepeatRows > 0, the first RepeatRows rows are
+	// grouped together with the following MinOrphanRows data rows so the
+	// page-overflow logic keeps them on the same page.
+	//
+	// Example: RepeatRows=1, MinOrphanRows=2 means the header can never
+	// appear on a page without at least 2 data rows following it.
+	//
+	// Has no effect when RepeatRows is 0.
+	MinOrphanRows int
 }
 
 // tableWidth returns the total width of the table (sum of all column widths).
@@ -347,8 +358,12 @@ func (t *Table) Draw() error {
 		grpH := sumF(rowH[grp.startRow : grp.endRow+1])
 
 		// Page overflow: start new page when group doesn't fit and we're not
-		// already at the top of the page.
-		if curY+grpH > pageBottom && curY > segTopY {
+		// already at the top of the page (contY).  Using contY rather than
+		// segTopY allows the very first group of a table to overflow when the
+		// table starts partway down a page and the group (e.g. a merged
+		// header+data block via MinOrphanRows) doesn't fit in the remaining
+		// space.
+		if curY+grpH > pageBottom && curY > contY {
 			// Draw outer border for the segment we're closing.
 			if err := t.drawSegmentBorder(segTopY, curY-segTopY, isFirst, false); err != nil {
 				return err
@@ -358,8 +373,11 @@ func (t *Table) Draw() error {
 			segTopY = curY
 			isFirst = false
 
-			// Re-render header rows on the new page.
-			if rr := t.cfg.RepeatRows; rr > 0 && rr <= len(t.rows) && !t.doc.countingMode {
+			// Re-render header rows on the new page, but only when the
+			// overflowing group does not already include those rows (which
+			// happens when MinOrphanRows merges the header into the first
+			// group — re-rendering would produce a duplicate header).
+			if rr := t.cfg.RepeatRows; rr > 0 && rr <= len(t.rows) && !t.doc.countingMode && grp.startRow >= rr {
 				repeatH := sumF(rowH[0:rr])
 				if err := t.renderRowRange(placed, rowH, colX, curY, 0, rr-1); err != nil {
 					return err
@@ -567,6 +585,20 @@ func (t *Table) buildRowGroups(placed []placedCell) []rowGroup {
 			}
 		}
 	}
+	// Keep header rows together with the first MinOrphanRows data rows so
+	// that the header is never stranded alone at the bottom of a page.
+	if rr := t.cfg.RepeatRows; rr > 0 && t.cfg.MinOrphanRows > 0 {
+		minEnd := rr + t.cfg.MinOrphanRows - 1
+		if minEnd >= n {
+			minEnd = n - 1
+		}
+		for r := 0; r < rr; r++ {
+			if groupEnd[r] < minEnd {
+				groupEnd[r] = minEnd
+			}
+		}
+	}
+
 	// Propagate transitively.
 	for changed := true; changed; {
 		changed = false
