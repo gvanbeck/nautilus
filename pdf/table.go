@@ -80,6 +80,30 @@ type CellStyle struct {
 
 // ─── Cell ──────────────────────────────────────────────────────────────────
 
+// RichSpan is a run of styled text within a table cell.
+//
+// When a Cell's Spans field is non-nil the table renders those runs with
+// per-span font and colour overrides instead of the plain Cell.Text field.
+// Consecutive spans with the same FontName and Color are merged into a single
+// rendering segment for efficiency.
+//
+// Build a []RichSpan manually or use Document.TableFromHTML which creates
+// them automatically from parsed HTML.
+type RichSpan struct {
+	// Text is the content of this run.
+	// Explicit \n characters are treated as paragraph breaks within the cell,
+	// identical to how \n works in Cell.Text.
+	Text string
+
+	// FontName selects a font previously registered with Document.RegisterFont.
+	// When empty the cell style's FontName (or the document's active font) is used.
+	FontName string
+
+	// Color overrides the text colour for this run.
+	// When nil the cell style's TextColor (defaulting to black) is used.
+	Color *Color
+}
+
 // Cell is a single table cell with text content and optional style overrides.
 //
 // Cells within a row must collectively fill all table columns, accounting for
@@ -88,7 +112,16 @@ type CellStyle struct {
 type Cell struct {
 	// Text is the cell content.  Word wrapping is applied automatically.
 	// Explicit \n newlines are honoured as paragraph breaks.
+	// Ignored when Spans is non-nil.
 	Text string
+
+	// Spans holds styled text runs for rich cell content.
+	// When non-nil, Spans is rendered instead of Text.
+	// Each run may select its own font and colour; word wrapping is applied
+	// across span boundaries.
+	// Use Document.TableFromHTML to populate Spans automatically from HTML,
+	// or build the slice manually for custom rich-text cells.
+	Spans []RichSpan
 
 	// ColSpan is the number of columns this cell occupies.  Defaults to 1.
 	ColSpan int
@@ -391,9 +424,15 @@ func (t *Table) Draw() error {
 				t.doc.SetTextColor(0, 0, 0)
 			}
 
-			if pc.cell.Text != "" && contentW > 0 {
-				if err := t.renderCellText(pc.cell.Text, contentX, contentY, contentW, cellH, style); err != nil {
-					return err
+			if contentW > 0 {
+				if pc.cell.Spans != nil {
+					if err := t.renderCellSpans(pc.cell.Spans, contentX, contentY, contentW, cellH, style); err != nil {
+						return err
+					}
+				} else if pc.cell.Text != "" {
+					if err := t.renderCellText(pc.cell.Text, contentX, contentY, contentW, cellH, style); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -631,13 +670,32 @@ func (t *Table) measureCellHeight(pc placedCell) float64 {
 	style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
 	contentW := pc.width - style.Padding.Left - style.Padding.Right
 	vPad := style.Padding.Top + style.Padding.Bottom
+	fn, fs := t.effectiveFont(style)
+
+	// Rich-span content: wrap spans and count lines.
+	if pc.cell.Spans != nil {
+		if contentW <= 0 {
+			return t.doc.lineHeight() + vPad
+		}
+		if fn != "" && fs > 0 {
+			t.doc.SetFont(fn, fs) //nolint:errcheck
+		}
+		lines, err := t.wrapSpans(pc.cell.Spans, contentW, fs, fn)
+		if err != nil || len(lines) == 0 {
+			return t.doc.lineHeight() + vPad
+		}
+		// Restore font so lineHeight() uses the right size.
+		if fn != "" && fs > 0 {
+			t.doc.SetFont(fn, fs) //nolint:errcheck
+		}
+		return float64(len(lines))*t.doc.lineHeight() + vPad
+	}
 
 	if pc.cell.Text == "" || contentW <= 0 {
 		return t.doc.lineHeight() + vPad
 	}
 
 	// Temporarily set the cell font so MeasureTextWidth has valid metrics.
-	fn, fs := t.effectiveFont(style)
 	if fn != "" {
 		t.doc.SetFont(fn, fs) //nolint:errcheck
 	}
@@ -807,9 +865,15 @@ func (t *Table) renderRowRange(placed []placedCell, rowH []float64, colX []float
 		} else {
 			t.doc.SetTextColor(0, 0, 0)
 		}
-		if pc.cell.Text != "" && contentW > 0 {
-			if err := t.renderCellText(pc.cell.Text, contentX, contentY, contentW, cellH, style); err != nil {
-				return err
+		if contentW > 0 {
+			if pc.cell.Spans != nil {
+				if err := t.renderCellSpans(pc.cell.Spans, contentX, contentY, contentW, cellH, style); err != nil {
+					return err
+				}
+			} else if pc.cell.Text != "" {
+				if err := t.renderCellText(pc.cell.Text, contentX, contentY, contentW, cellH, style); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -881,6 +945,219 @@ func (t *Table) renderCellText(text string, contentX, contentY, contentW, cellH 
 		}
 		startY += lh
 	}
+	return nil
+}
+
+// ─── Rich-span layout ──────────────────────────────────────────────────────
+
+// spanRun is an internal segment produced by wrapSpans.
+// The text field may begin with a leading " " for runs that are not the first
+// on their line; this preserves correct inter-word spacing during rendering.
+type spanRun struct {
+	text     string
+	fontName string
+	color    *Color
+}
+
+// wrapSpans lays out a []RichSpan into wrapped lines suitable for rendering
+// inside a table cell.  Each line is a []spanRun.  Runs on the same line with
+// the same FontName and Color are merged to reduce PDF draw calls.
+//
+//   - contentW: available horizontal width in points.
+//   - defSize:  font size to use for measurement (should be positive).
+//   - defFont:  fallback font name for runs that have no FontName set.
+func (t *Table) wrapSpans(spans []RichSpan, contentW, defSize float64, defFont string) ([][]spanRun, error) {
+	// ── Step 1: flatten to individual words with metadata ─────────────────
+	type styledWord struct {
+		text     string
+		fontName string
+		color    *Color
+		isBreak  bool // hard newline sentinel
+	}
+
+	var words []styledWord
+	for _, sp := range spans {
+		fn := sp.FontName
+		if fn == "" {
+			fn = defFont
+		}
+		parts := strings.Split(sp.Text, "\n")
+		for i, part := range parts {
+			if i > 0 {
+				words = append(words, styledWord{isBreak: true})
+			}
+			for _, w := range strings.Fields(part) {
+				words = append(words, styledWord{text: w, fontName: fn, color: sp.Color})
+			}
+		}
+	}
+
+	if len(words) == 0 {
+		return [][]spanRun{nil}, nil
+	}
+
+	// ── Step 2: word-wrap into lines ──────────────────────────────────────
+	var lines [][]spanRun
+	var curLine []spanRun
+	curWidth := 0.0
+	firstOnLine := true
+
+	flushLine := func() {
+		lines = append(lines, curLine)
+		curLine = nil
+		curWidth = 0.0
+		firstOnLine = true
+	}
+
+	for _, w := range words {
+		if w.isBreak {
+			flushLine()
+			continue
+		}
+
+		// Activate the word's font for accurate measurement.
+		if w.fontName != "" && defSize > 0 {
+			t.doc.SetFont(w.fontName, defSize) //nolint:errcheck
+		}
+
+		wordWidth, err := t.doc.measureWord(w.text)
+		if err != nil {
+			wordWidth = 0
+		}
+
+		spaceWidth := 0.0
+		if !firstOnLine {
+			spaceWidth, _ = t.doc.pdf.MeasureTextWidth(" ")
+		}
+
+		// Wrap when the word would exceed the available width.
+		if !firstOnLine && curWidth+spaceWidth+wordWidth > contentW {
+			flushLine()
+			spaceWidth = 0
+		}
+
+		prefix := ""
+		if !firstOnLine {
+			prefix = " "
+		}
+
+		// Merge with the last run when font and colour match.
+		if len(curLine) > 0 {
+			last := &curLine[len(curLine)-1]
+			if last.fontName == w.fontName && last.color == w.color {
+				last.text += prefix + w.text
+				curWidth += spaceWidth + wordWidth
+				firstOnLine = false
+				continue
+			}
+		}
+
+		curLine = append(curLine, spanRun{
+			text:     prefix + w.text,
+			fontName: w.fontName,
+			color:    w.color,
+		})
+		curWidth += spaceWidth + wordWidth
+		firstOnLine = false
+	}
+
+	flushLine()
+	return lines, nil
+}
+
+// renderCellSpans renders a []RichSpan inside the cell content area with the
+// same vertical- and horizontal-alignment logic used by renderCellText.
+func (t *Table) renderCellSpans(spans []RichSpan, contentX, contentY, contentW, cellH float64, style CellStyle) error {
+	defFont, defSize := t.effectiveFont(style)
+
+	// Activate default font so lineHeight() is consistent.
+	if defFont != "" && defSize > 0 {
+		if err := t.doc.SetFont(defFont, defSize); err != nil {
+			return err
+		}
+	}
+
+	lines, err := t.wrapSpans(spans, contentW, defSize, defFont)
+	if err != nil {
+		return err
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// Restore default font after wrapSpans may have changed it.
+	if defFont != "" && defSize > 0 {
+		t.doc.SetFont(defFont, defSize) //nolint:errcheck
+	}
+
+	lh := t.doc.lineHeight()
+	totalH := float64(len(lines)) * lh
+
+	// ── Vertical start position ──────────────────────────────────────────
+	startY := contentY
+	switch style.VAlign {
+	case VAlignMiddle:
+		innerH := cellH - style.Padding.Top - style.Padding.Bottom
+		startY = contentY + (innerH-totalH)/2
+	case VAlignBottom:
+		innerH := cellH - style.Padding.Top - style.Padding.Bottom
+		startY = contentY + innerH - totalH
+	}
+
+	// ── Render each line ─────────────────────────────────────────────────
+	for _, line := range lines {
+		// Measure total line width for horizontal alignment.
+		lineW := 0.0
+		for _, run := range line {
+			fn := run.fontName
+			if fn == "" {
+				fn = defFont
+			}
+			if fn != "" && defSize > 0 {
+				t.doc.SetFont(fn, defSize) //nolint:errcheck
+			}
+			w, _ := t.doc.measureWord(run.text)
+			lineW += w
+		}
+
+		lineX := contentX
+		switch style.HAlign {
+		case HAlignCenter:
+			lineX = contentX + (contentW-lineW)/2
+		case HAlignRight:
+			lineX = contentX + contentW - lineW
+		}
+
+		// Render each run on this line.
+		for _, run := range line {
+			fn := run.fontName
+			if fn == "" {
+				fn = defFont
+			}
+			if fn != "" && defSize > 0 {
+				if err := t.doc.SetFont(fn, defSize); err != nil {
+					return fmt.Errorf("pdf: table span font %q: %w", fn, err)
+				}
+			}
+
+			if run.color != nil {
+				t.doc.SetTextColor(run.color.R, run.color.G, run.color.B)
+			} else if style.TextColor != nil {
+				t.doc.SetTextColor(style.TextColor.R, style.TextColor.G, style.TextColor.B)
+			} else {
+				t.doc.SetTextColor(0, 0, 0)
+			}
+
+			endX, err := t.doc.WriteLine(run.text, lineX, startY)
+			if err != nil {
+				return err
+			}
+			lineX = endX
+		}
+
+		startY += lh
+	}
+
 	return nil
 }
 
