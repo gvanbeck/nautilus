@@ -27,6 +27,19 @@ Built on top of [gopdf](https://github.com/signintech/gopdf).
 - **20 chart types** — line, area, column, bar, pie, polar, scatter, bubble, heatmap, waterfall, funnel, gauge, errorbar, boxplot, columnrange, arearange, bullet, dumbbell, lollipop, treemap
 - **Output** — save to file or write to any `io.Writer`
 
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Layout engine](docs/layout-guide.en.md) | `DocTemplate`, `PageTemplate`, `LayoutFrame`, the `Flowable` story model, multi-column layouts, and page decorators |
+| [Charts](docs/chart-guide.en.md) | All 20 chart types with full configuration reference and examples |
+| [HTML](docs/html-guide.en.md) | Inline HTML span parsing and HTML table rendering |
+| [RML](docs/rml-guide.en.md) | XML-based document description — define pages, styles, and content without writing Go code |
+
+Nederlandse versies: [Layout](docs/layout-guide.md) · [Charts](docs/chart-guide.md) · [HTML](docs/html-guide.md) · [RML](docs/rml-guide.md)
+
+---
+
 ## Installation
 
 ```sh
@@ -277,8 +290,10 @@ values, each carrying text, formatting flags, and an optional CSS class name.
 import "github.com/gvanbeck/nautilus/pdf/html"
 ```
 
-**Supported tags:** `<b>`, `<strong>`, `<i>`, `<em>`, `<u>`, and any inline
-tag with a `class` attribute. Tags may be freely nested.
+**Supported tags:** `<b>`, `<strong>`, `<i>`, `<em>`, `<cite>`, `<var>`,
+`<dfn>`, `<u>`, `<ins>`, `<s>`, `<strike>`, `<del>`, `<code>`, `<tt>`,
+`<kbd>`, `<samp>`, and any tag with a `class` attribute. Tags may be freely
+nested.
 
 ```go
 spans, err := html.Parse("<b>bold</b> and <i>italic</i>", nil)
@@ -289,7 +304,7 @@ Each `Span` contains:
 ```go
 type Span struct {
     Text  string      // plain text content
-    Style html.Style  // Bold, Italic, Underline flags
+    Style html.Style  // Bold, Italic, Underline, Strikethrough, Monospace flags
     Class string      // CSS class name (innermost), if present
 }
 ```
@@ -311,29 +326,43 @@ spans, err := html.Parse(`<span class="highlight">text</span>`, cs)
 // spans[0].Class == "highlight"
 ```
 
-**Rendering spans:**
-
-Switch fonts based on `Span.Style` and render each span in sequence,
-advancing `x` with the return value of `WriteLine`:
+**Rendering spans with `WriteHTMLSpans`:**
 
 ```go
 fontFor := func(s html.Style) string {
     switch {
-    case s.Bold:
-        return "bold"
-    case s.Italic:
-        return "italic"
-    default:
-        return "regular"
+    case s.Bold:      return "bold"
+    case s.Italic:    return "italic"
+    case s.Monospace: return "mono"
+    default:          return "regular"
     }
 }
-
-x := startX
-for _, span := range spans {
-    doc.SetFont(fontFor(span.Style), fontSize)
-    x, _ = doc.WriteLine(span.Text, x, y)
-}
+endX, err := doc.WriteHTMLSpans(spans, fontFor, fontSize, x, y)
 ```
+
+Underline and strikethrough decorations are drawn automatically.
+
+**HTML table parsing:**
+
+Parse a `<table>` element and render it as a `pdf.Table`:
+
+```go
+htmlTable, err := html.ParseTable(htmlString)
+
+pdfTable, err := doc.TableFromHTML(htmlTable, pdf.TableConfig{
+    ColWidths: []float64{200, 100, 80},
+    DefaultCellStyle: pdf.CellStyle{FontName: "regular", FontSize: 10},
+}, pdf.HtmlTableOptions{
+    SpanFontFor: fontFor,
+    HeaderStyle: pdf.CellStyle{FontName: "bold", Background: &headerBg, TextColor: &white},
+})
+endY, err := pdfTable.Draw(doc, x, y)
+```
+
+Supports `colspan`, `rowspan`, `align`, `valign`, `bgcolor`, inline `style`,
+`<thead>` / `<tbody>` / `<tfoot>`, and inline HTML tags within cells.
+
+→ **Full reference:** [docs/html-guide.en.md](docs/html-guide.en.md)
 
 ### Emoji support
 
@@ -1142,6 +1171,34 @@ story := []layout.Flowable{
 dt.Build(story)
 ```
 
+## RML (`pdf/rml`)
+
+The `pdf/rml` package lets you describe complete PDF documents in XML without
+writing any Go rendering code.  An RML file declares fonts, page templates,
+paragraph styles, table styles, and story content in a single file.
+
+```go
+import "github.com/gvanbeck/nautilus/pdf/rml"
+
+doc, err := rml.ParseFile("invoice.rml", rml.Options{FontDir: "/path/to/fonts"})
+doc.Save("invoice.pdf")
+```
+
+Or from the command line:
+
+```sh
+go run ./examples/rml -rml examples/rml/invoice.rml -fontdir /Library/Fonts -out invoice.pdf
+```
+
+**Supported elements:** page templates, frames, page graphics (headers/footers),
+paragraph and table styles, `<para>`, `<blockTable>`, `<image>`, `<ul>` / `<ol>`,
+`<spacer>`, `<hr>`, `<keepTogether>`, `<pageBreak>`, `<condPageBreak>`,
+`<nextPageTemplate>`, and font registration.
+
+→ **Full reference:** [docs/rml-guide.en.md](docs/rml-guide.en.md)
+
+---
+
 ## Charts (`pdf/chart`)
 
 Nautilus includes 20 chart types with a declarative API that mirrors the
@@ -1558,16 +1615,19 @@ opts := chart.Options{
 wc := &waterfall.WaterfallChart{Options: opts}
 ```
 
+→ **Full reference:** [docs/chart-guide.en.md](docs/chart-guide.en.md)
+
 ## Examples
 
 | Example | Description |
 |---------|-------------|
 | [`examples/basic`](examples/basic/main.go) | Multi-page demo covering fonts, Unicode, emoji, borders, frames, tables, headers/footers, and the two-pass Build mechanism. |
-| [`examples/html`](examples/html/main.go) | Demonstrates `pdf/html`: parsing inline HTML tags and class attributes into styled `Span` values, then rendering them with font switching. |
+| [`examples/html`](examples/html/main.go) | Demonstrates `pdf/html`: inline HTML parsing, HTML table parsing and rendering with `WriteHTMLSpans` and `TableFromHTML`. |
 | [`examples/layout`](examples/layout/main.go) | Multi-column, frame switching, `KeepTogether`, `CondPageBreak`, `HRFlowable`, and the `OnPage` decorator. |
 | [`examples/rtl`](examples/rtl/main.go) | Arabic and Hebrew right-to-left text: contextual shaping, lam-alef ligatures, BiDi reordering, mixed RTL/LTR, and RTL inside a Frame. |
-| [`examples/xml`](examples/xml/main.go) | XML data → PDF table: parse a structured XML file and render it as a styled table. |
-| [`examples/chart`](examples/chart/main.go) | All 20 chart types rendered via the layout engine across 11 pages. |
+| [`examples/rml`](examples/rml/main.go) | XML-based document generation using the RML package; includes a full invoice template. |
+| [`examples/celltag`](examples/celltag/main.go) | Generate table rows from Go structs using `cell` struct tags with `CellsFromStruct`. |
+| [`examples/chart`](examples/chart/main.go) | All 20 chart types rendered via the layout engine across multiple pages. |
 
 ### Running the basic example
 
