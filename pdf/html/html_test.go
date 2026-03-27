@@ -139,6 +139,52 @@ func TestParse_TagWithClass(t *testing.T) {
 	}
 }
 
+func TestParse_Strikethrough(t *testing.T) {
+	for _, tag := range []string{"s", "strike", "del"} {
+		spans, err := Parse("<"+tag+">struck</"+tag+">", nil)
+		if err != nil {
+			t.Fatalf("%s: %v", tag, err)
+		}
+		if len(spans) != 1 || !spans[0].Style.Strikethrough {
+			t.Errorf("<%s> should produce strikethrough span", tag)
+		}
+	}
+}
+
+func TestParse_Monospace(t *testing.T) {
+	for _, tag := range []string{"code", "tt", "kbd", "samp"} {
+		spans, err := Parse("<"+tag+">mono</"+tag+">", nil)
+		if err != nil {
+			t.Fatalf("%s: %v", tag, err)
+		}
+		if len(spans) != 1 || !spans[0].Style.Monospace {
+			t.Errorf("<%s> should produce monospace span", tag)
+		}
+	}
+}
+
+func TestParse_SemanticItalic(t *testing.T) {
+	for _, tag := range []string{"cite", "var", "dfn"} {
+		spans, err := Parse("<"+tag+">text</"+tag+">", nil)
+		if err != nil {
+			t.Fatalf("%s: %v", tag, err)
+		}
+		if len(spans) != 1 || !spans[0].Style.Italic {
+			t.Errorf("<%s> should produce italic span", tag)
+		}
+	}
+}
+
+func TestParse_Ins(t *testing.T) {
+	spans, err := Parse("<ins>inserted</ins>", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 || !spans[0].Style.Underline {
+		t.Error("<ins> should produce underline span")
+	}
+}
+
 func TestParse_UnclosedTag(t *testing.T) {
 	_, err := Parse("text <incomplete", nil)
 	if err == nil {
@@ -156,5 +202,131 @@ func TestParse_InnermostClass(t *testing.T) {
 	}
 	if spans[0].Class != "inner" {
 		t.Errorf("want innermost class %q, got %q", "inner", spans[0].Class)
+	}
+}
+
+func TestParse_EmptyInput(t *testing.T) {
+	spans, err := Parse("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 0 {
+		t.Errorf("want 0 spans, got %d", len(spans))
+	}
+}
+
+func TestParse_SelfClosingTagIgnored(t *testing.T) {
+	// Self-closing tags must not be pushed onto the style stack.
+	spans, err := Parse("before<br/>after", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 2 {
+		t.Fatalf("want 2 spans, got %d", len(spans))
+	}
+	if spans[0].Text != "before" || spans[1].Text != "after" {
+		t.Errorf("unexpected texts: %q %q", spans[0].Text, spans[1].Text)
+	}
+}
+
+func TestParse_CaseInsensitiveTags(t *testing.T) {
+	spans, err := Parse("<B>bold</B> <STRONG>strong</STRONG>", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 3 {
+		t.Fatalf("want 3 spans, got %d", len(spans))
+	}
+	if !spans[0].Style.Bold {
+		t.Error("<B> should produce bold")
+	}
+	if !spans[2].Style.Bold {
+		t.Error("<STRONG> should produce bold")
+	}
+}
+
+func TestParse_UnknownClass(t *testing.T) {
+	// An unknown class must be preserved in Span.Class but must not change Style.
+	cs := ClassStyle{
+		"known": {Bold: true},
+	}
+	spans, err := Parse(`<span class="unknown">text</span>`, cs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 {
+		t.Fatalf("want 1 span, got %d", len(spans))
+	}
+	if spans[0].Class != "unknown" {
+		t.Errorf("want class %q, got %q", "unknown", spans[0].Class)
+	}
+	if spans[0].Style != (Style{}) {
+		t.Errorf("want empty style for unknown class, got %+v", spans[0].Style)
+	}
+}
+
+func TestParse_ClassSingleQuote(t *testing.T) {
+	spans, err := Parse(`<span class='sq'>text</span>`, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 || spans[0].Class != "sq" {
+		t.Errorf("want class %q, got %q", "sq", spans[0].Class)
+	}
+}
+
+func TestParse_ClassUnquoted(t *testing.T) {
+	spans, err := Parse(`<span class=uq>text</span>`, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 || spans[0].Class != "uq" {
+		t.Errorf("want class %q, got %q", "uq", spans[0].Class)
+	}
+}
+
+func TestParse_ParentClassInheritedByChild(t *testing.T) {
+	// Text inside a classed parent but below an unclassed child should still
+	// report the parent's class via effectiveClass.
+	spans, err := Parse(`<span class="outer"><b>text</b></span>`, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 {
+		t.Fatalf("want 1 span, got %d", len(spans))
+	}
+	if spans[0].Class != "outer" {
+		t.Errorf("want class %q, got %q", "outer", spans[0].Class)
+	}
+	if !spans[0].Style.Bold {
+		t.Error("want bold from <b> inside classed span")
+	}
+}
+
+func TestParse_StrikethroughAndItalic(t *testing.T) {
+	spans, err := Parse("<s><i>struck italic</i></s>", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 {
+		t.Fatalf("want 1 span, got %d", len(spans))
+	}
+	s := spans[0].Style
+	if !s.Strikethrough || !s.Italic {
+		t.Errorf("want strikethrough+italic, got %+v", s)
+	}
+}
+
+func TestParse_MonospaceAndBold(t *testing.T) {
+	spans, err := Parse("<code><b>bold mono</b></code>", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 1 {
+		t.Fatalf("want 1 span, got %d", len(spans))
+	}
+	s := spans[0].Style
+	if !s.Monospace || !s.Bold {
+		t.Errorf("want monospace+bold, got %+v", s)
 	}
 }

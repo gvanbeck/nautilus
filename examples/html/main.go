@@ -2,9 +2,11 @@
 // pdf/html package.
 //
 // It generates output.pdf with examples of:
-//   - <b> / <strong> tags rendered in a bold font
-//   - <i> / <em> tags rendered in an italic font
-//   - <u> tags (underline tracked in Span.Style, noted in the PDF)
+//   - <b>, <strong>              → bold
+//   - <i>, <em>, <cite>, <var>, <dfn> → italic
+//   - <u>, <ins>                 → underline (tracked in Span.Style)
+//   - <s>, <strike>, <del>       → strikethrough (tracked in Span.Style)
+//   - <code>, <tt>, <kbd>, <samp> → monospace
 //   - Nesting: bold+italic combined
 //   - <span class="..."> with a ClassStyle map
 //
@@ -14,10 +16,11 @@
 //	    -font   /Library/Fonts/Lato-Regular.ttf \
 //	    -bold   /Library/Fonts/Lato-Bold.ttf \
 //	    -italic /Library/Fonts/Lato-Italic.ttf \
+//	    -mono   /Library/Fonts/CourierPrime-Regular.ttf \
 //	    -out    output.pdf
 //
-// Only -font is required; -bold and -italic fall back to the regular font when
-// omitted.
+// Only -font is required; -bold, -italic and -mono fall back to the regular
+// font when omitted.
 package main
 
 import (
@@ -31,10 +34,11 @@ import (
 )
 
 func main() {
-	fontPath   := flag.String("font",   "/Library/Fonts/Lato-Regular.ttf", "regular TTF/OTF font")
-	boldPath   := flag.String("bold",   "/Library/Fonts/Lato-Bold.ttf",    "bold TTF/OTF font (falls back to regular)")
-	italicPath := flag.String("italic", "/Library/Fonts/Lato-Italic.ttf",  "italic TTF/OTF font (falls back to regular)")
-	outPath    := flag.String("out",    "output.pdf",                       "output PDF file path")
+	fontPath   := flag.String("font",   "/Library/Fonts/Lato-Regular.ttf",        "regular TTF/OTF font")
+	boldPath   := flag.String("bold",   "/Library/Fonts/Lato-Bold.ttf",           "bold TTF/OTF font (falls back to regular)")
+	italicPath := flag.String("italic", "/Library/Fonts/Lato-Italic.ttf",         "italic TTF/OTF font (falls back to regular)")
+	monoPath   := flag.String("mono",   "/Library/Fonts/CourierPrime-Regular.ttf", "monospace TTF/OTF font (falls back to regular)")
+	outPath    := flag.String("out",    "output.pdf",                              "output PDF file path")
 	flag.Parse()
 
 	// ── Create document ───────────────────────────────────────────────────
@@ -77,10 +81,21 @@ func main() {
 		}
 	}
 
+	hasMono := false
+	if _, err := os.Stat(*monoPath); err == nil {
+		if err := doc.RegisterFont("mono", *monoPath); err != nil {
+			log.Printf("warning: mono font: %v — falling back to regular", err)
+		} else {
+			hasMono = true
+		}
+	}
+
 	// ── Font mapper ───────────────────────────────────────────────────────
 	// Given a Span.Style, return the registered font name to use.
 	fontFor := func(s htmlpkg.Style) string {
 		switch {
+		case s.Monospace && hasMono:
+			return "mono"
 		case s.Bold && hasBold:
 			return "bold"
 		case s.Italic && hasItalic:
@@ -171,8 +186,8 @@ func main() {
 	)
 	y = endY + 20
 
-	// ── Section 1: basic b / i / u ────────────────────────────────────────
-	y = heading("1. Tags <b>, <i>, <u>", y)
+	// ── Section 1: basic b / i / u / ins ─────────────────────────────────
+	y = heading("1. Tags <b>, <i>, <u>, <ins>, <strong>, <em>", y)
 
 	samples := []struct {
 		html  string
@@ -181,6 +196,7 @@ func main() {
 		{`Normal text, then <b>bold text</b>, then normal again.`, 0},
 		{`Normal text, then <i>italic text</i>, then normal again.`, 0},
 		{`Normal text, then <u>underlined text</u>, then normal again.`, 0},
+		{`Normal text, then <ins>inserted text</ins>, then normal again.`, 0},
 		{`<strong>strong</strong> and <em>em</em> work too.`, 0},
 	}
 
@@ -209,6 +225,24 @@ func main() {
 			x2 += w
 		}
 
+		y += fontSize*1.5 + 18
+	}
+
+	y += 8
+
+	// ── Section 1b: semantic italic ───────────────────────────────────────
+	y = heading("1b. Semantic italic: <cite>, <var>, <dfn>", y)
+
+	semanticSamples := []string{
+		`<cite>The Go Programming Language</cite> is a great book.`,
+		`Set <var>x</var> to the initial value.`,
+		`The term <dfn>goroutine</dfn> refers to a lightweight thread.`,
+	}
+	for _, h := range semanticSamples {
+		spans, _ := htmlpkg.Parse(h, nil)
+		label(h, marginLeft, y)
+		y += 14
+		writeSpans(spans, marginLeft, y)
 		y += fontSize*1.5 + 18
 	}
 
@@ -271,6 +305,62 @@ func main() {
 		}
 
 		y += fontSize*1.5 + 22
+	}
+
+	y += 8
+
+	// ── Section 4: strikethrough ──────────────────────────────────────────
+	y = heading("4. Strikethrough: <s>, <strike>, <del>", y)
+
+	strikeSamples := []string{
+		`Price was <s>€99</s> now €49.`,
+		`<strike>This text is struck through.</strike>`,
+		`<del>Deleted content</del> replaced by new content.`,
+	}
+	for _, h := range strikeSamples {
+		spans, _ := htmlpkg.Parse(h, nil)
+		label(h, marginLeft, y)
+		y += 14
+		writeSpans(spans, marginLeft, y)
+
+		// Annotate strikethrough spans (not yet drawn by the library).
+		x2 := marginLeft
+		for _, sp := range spans {
+			w, _ := doc.MeasureText(sp.Text)
+			if sp.Style.Strikethrough {
+				doc.SetFont("regular", 8) //nolint
+				doc.SetTextColor(200, 80, 0)
+				doc.WriteLine("↑ strikethrough (tracked)", x2, y+fontSize+2) //nolint
+			}
+			x2 += w
+		}
+
+		y += fontSize*1.5 + 22
+	}
+
+	y += 8
+
+	// ── Section 5: monospace ──────────────────────────────────────────────
+	y = heading("5. Monospace: <code>, <tt>, <kbd>, <samp>", y)
+
+	doc.SetFont("regular", 10) //nolint
+	doc.SetTextColor(80, 80, 80)
+	monoNote := "Uses the -mono font when provided, otherwise falls back to the regular font."
+	endY, _ = doc.WriteText(monoNote, marginLeft, y, contentW)
+	y = endY + 12
+
+	monoSamples := []string{
+		`Run <code>go build ./...</code> to compile.`,
+		`Press <kbd>Ctrl+C</kbd> to cancel.`,
+		`The output was <samp>hello, world</samp>.`,
+		`Use <tt>fmt.Println</tt> for simple output.`,
+	}
+	for _, h := range monoSamples {
+		spans, _ := htmlpkg.Parse(h, nil)
+		label(h, marginLeft, y)
+		y += 14
+		writeSpans(spans, marginLeft, y)
+		y += fontSize*1.5 + 18
 	}
 
 	// ── Write output ──────────────────────────────────────────────────────

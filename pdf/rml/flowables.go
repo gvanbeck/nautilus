@@ -12,26 +12,33 @@ import (
 // ─── htmlParagraph ───────────────────────────────────────────────────────────
 //
 // htmlParagraph is a layout.Flowable that renders a paragraph whose text may
-// contain inline HTML markup (<b>, <i>, <u>).  It honours the same
-// ParagraphStyle as layout.Paragraph; per-span font variants are resolved via
-// the fontFamily map.
+// contain inline HTML markup (<b>, <i>, <u>, <s>, <code>, …).  It honours the
+// same ParagraphStyle as layout.Paragraph; per-span font variants are resolved
+// via the fontFamily map.
+//
+// monoFont, when non-empty, is the base font name used for monospace spans
+// (<code>, <tt>, <kbd>, <samp>).  Register a font family named "mono" in the
+// RML <docinit> to activate automatic monospace font substitution.
 
 type htmlParagraph struct {
-	text        string // raw inner-XML text (may contain <b>…</b> etc.)
-	style       layout.ParagraphStyle
-	families    map[string]fontFamily // font family overrides
-	computedW   float64
-	computedH   float64
-	lines       []htmlLine
+	text      string // raw inner-XML text (may contain <b>…</b> etc.)
+	style     layout.ParagraphStyle
+	families  map[string]fontFamily // font family overrides
+	monoFont  string                // font name for monospace spans; "" = no substitution
+	computedW float64
+	computedH float64
+	lines     []htmlLine
 }
 
 type htmlLine []htmlSpan
 
 type htmlSpan struct {
-	text     string
-	bold     bool
-	italic   bool
-	underline bool
+	text          string
+	bold          bool
+	italic        bool
+	underline     bool
+	strikethrough bool
+	monospace     bool
 }
 
 // SpaceBefore / SpaceAfter / KeepWithNext / MinWidth satisfy Flowable.
@@ -62,8 +69,17 @@ func (p *htmlParagraph) Draw(doc *pdf.Document, x, y float64) error {
 	innerW := p.computedW - p.style.LeftIndent - p.style.RightIndent
 	lh := p.leading(doc)
 
+	// Font size used for decoration line positioning and thickness.
+	fs := p.style.FontSize
+	if fs == 0 {
+		fs, _ = doc.CurrentFontSize()
+	}
+
+	// Decoration lines follow the text color.
+	lineColor := pdf.Color{R: 0, G: 0, B: 0}
 	if p.style.TextColor != nil {
 		doc.SetTextColor(p.style.TextColor.R, p.style.TextColor.G, p.style.TextColor.B)
+		lineColor = *p.style.TextColor
 	} else {
 		doc.SetTextColor(0, 0, 0)
 	}
@@ -82,6 +98,13 @@ func (p *htmlParagraph) Draw(doc *pdf.Document, x, y float64) error {
 			p.activateFontForSpan(doc, span)
 			doc.WriteLine(span.text, cx, y) //nolint:errcheck
 			w, _ := doc.MeasureText(span.text)
+			thickness := fs * 0.07
+			if span.underline {
+				doc.DrawLine(cx, y+fs*0.9, cx+w, y+fs*0.9, thickness, lineColor)
+			}
+			if span.strikethrough {
+				doc.DrawLine(cx, y+fs*0.45, cx+w, y+fs*0.45, thickness, lineColor)
+			}
 			cx += w
 		}
 		y += lh
@@ -98,12 +121,12 @@ func (p *htmlParagraph) Split(doc *pdf.Document, availW, availH float64) []layou
 	if maxLines <= 0 || maxLines >= len(lines) {
 		return nil
 	}
-	p1 := &htmlParagraph{text: "", style: p.style, families: p.families, lines: lines[:maxLines]}
+	p1 := &htmlParagraph{text: "", style: p.style, families: p.families, monoFont: p.monoFont, lines: lines[:maxLines]}
 	p1.computedW = availW
 	p1.computedH = float64(maxLines) * lh
 	p1.style.SpaceAfter = 0
 
-	p2 := &htmlParagraph{text: p.text, style: p.style, families: p.families}
+	p2 := &htmlParagraph{text: p.text, style: p.style, families: p.families, monoFont: p.monoFont}
 	p2.style.SpaceBefore = 0
 	// Reconstruct p2 text from remaining lines (approx; re-parse on Wrap)
 	remaining := make([]string, 0, len(lines)-maxLines)
@@ -143,6 +166,9 @@ func (p *htmlParagraph) activateFont(doc *pdf.Document) {
 
 func (p *htmlParagraph) activateFontForSpan(doc *pdf.Document, span htmlSpan) {
 	base := p.style.FontName
+	if span.monospace && p.monoFont != "" {
+		base = p.monoFont
+	}
 	fs := p.style.FontSize
 	if fs == 0 {
 		fs, _ = doc.CurrentFontSize()
@@ -191,6 +217,8 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 		bold   bool
 		italic bool
 		under  bool
+		strike bool
+		mono   bool
 	}
 	var words []word
 	for _, sp := range spans {
@@ -202,6 +230,8 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 				bold:   sp.Style.Bold,
 				italic: sp.Style.Italic,
 				under:  sp.Style.Underline,
+				strike: sp.Style.Strikethrough,
+				mono:   sp.Style.Monospace,
 			})
 		}
 		// Honour explicit newlines as paragraph breaks within the text.
@@ -222,21 +252,22 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 		}
 	}
 
-	spaceW := p.measureWord(doc, " ", false, false)
+	spaceW := p.measureWord(doc, " ", false, false, false)
 
 	for _, w := range words {
 		if w.text == "\n" {
 			flush()
 			continue
 		}
-		ww := p.measureWordStyled(doc, w.text, w.bold, w.italic)
+		ww := p.measureWordStyled(doc, w.text, w.bold, w.italic, w.mono)
 		if curW+ww > innerW && len(curLine) > 0 {
 			flush()
 		}
 		// Append to current span or start new span.
 		if len(curLine) > 0 {
 			last := &curLine[len(curLine)-1]
-			if last.bold == w.bold && last.italic == w.italic && last.underline == w.under {
+			if last.bold == w.bold && last.italic == w.italic && last.underline == w.under &&
+				last.strikethrough == w.strike && last.monospace == w.mono {
 				last.text += " " + w.text
 				curW += spaceW + ww
 				continue
@@ -244,19 +275,30 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 			last.text += " "
 			curW += spaceW
 		}
-		curLine = append(curLine, htmlSpan{text: w.text, bold: w.bold, italic: w.italic, underline: w.under})
+		curLine = append(curLine, htmlSpan{
+			text:          w.text,
+			bold:          w.bold,
+			italic:        w.italic,
+			underline:     w.under,
+			strikethrough: w.strike,
+			monospace:     w.mono,
+		})
 		curW += ww
 	}
 	flush()
 	return lines
 }
 
-func (p *htmlParagraph) measureWord(doc *pdf.Document, w string, bold, italic bool) float64 {
-	return p.measureWordStyled(doc, w, bold, italic)
+func (p *htmlParagraph) measureWord(doc *pdf.Document, w string, bold, italic, mono bool) float64 {
+	return p.measureWordStyled(doc, w, bold, italic, mono)
 }
 
-func (p *htmlParagraph) measureWordStyled(doc *pdf.Document, w string, bold, italic bool) float64 {
-	name := p.resolveVariant(p.style.FontName, bold, italic)
+func (p *htmlParagraph) measureWordStyled(doc *pdf.Document, w string, bold, italic, mono bool) float64 {
+	base := p.style.FontName
+	if mono && p.monoFont != "" {
+		base = p.monoFont
+	}
+	name := p.resolveVariant(base, bold, italic)
 	fs := p.style.FontSize
 	if fs == 0 {
 		fs, _ = doc.CurrentFontSize()

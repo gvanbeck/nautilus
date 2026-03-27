@@ -209,7 +209,11 @@ func nodeToFlowable(n storyNode, ss *resolvedStylesheet, pdfdoc *pdf.Document, f
 		style := ss.para[node.style]
 		// Use htmlParagraph when text contains inline markup, plain Paragraph otherwise.
 		if strings.ContainsAny(node.text, "<>") {
-			return &htmlParagraph{text: node.text, style: style, families: families}, nil
+			monoFont := ""
+			if fam, ok := families["mono"]; ok && fam.regular != "" {
+				monoFont = fam.regular
+			}
+			return &htmlParagraph{text: node.text, style: style, families: families, monoFont: monoFont}, nil
 		}
 		return &layout.Paragraph{Text: node.text, Style: style}, nil
 

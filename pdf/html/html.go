@@ -1,7 +1,14 @@
 // Package html converts inline HTML into text spans for PDF rendering.
 //
-// Supported inline tags: <b>, <strong>, <i>, <em>, <u>, and any inline tag
-// with a class attribute. Tags may be freely nested.
+// Supported inline tags:
+//   - <b>, <strong>              → bold
+//   - <i>, <em>, <cite>, <var>, <dfn> → italic
+//   - <u>, <ins>                 → underline
+//   - <s>, <strike>, <del>       → strikethrough
+//   - <code>, <tt>, <kbd>, <samp> → monospace
+//   - any tag with a class attribute
+//
+// Tags may be freely nested.
 package html
 
 import (
@@ -11,9 +18,11 @@ import (
 
 // Style describes text formatting for a span of text.
 type Style struct {
-	Bold      bool
-	Italic    bool
-	Underline bool
+	Bold          bool
+	Italic        bool
+	Underline     bool
+	Strikethrough bool
+	Monospace     bool
 }
 
 // Span is a piece of text with associated formatting.
@@ -39,11 +48,13 @@ func Parse(input string, classes ClassStyle) ([]Span, error) {
 }
 
 type styleFrame struct {
-	tagName   string
-	bold      bool
-	italic    bool
-	underline bool
-	class     string
+	tagName       string
+	bold          bool
+	italic        bool
+	underline     bool
+	strikethrough bool
+	monospace     bool
+	class         string
 }
 
 type parser struct {
@@ -104,10 +115,14 @@ func (p *parser) push(raw string) {
 	switch tagName {
 	case "b", "strong":
 		frame.bold = true
-	case "i", "em":
+	case "i", "em", "cite", "var", "dfn":
 		frame.italic = true
-	case "u":
+	case "u", "ins":
 		frame.underline = true
+	case "s", "strike", "del":
+		frame.strikethrough = true
+	case "code", "tt", "kbd", "samp":
+		frame.monospace = true
 	}
 
 	frame.class = extractClass(raw)
@@ -116,6 +131,8 @@ func (p *parser) push(raw string) {
 			frame.bold = frame.bold || cs.Bold
 			frame.italic = frame.italic || cs.Italic
 			frame.underline = frame.underline || cs.Underline
+			frame.strikethrough = frame.strikethrough || cs.Strikethrough
+			frame.monospace = frame.monospace || cs.Monospace
 		}
 	}
 
@@ -142,6 +159,12 @@ func (p *parser) effectiveStyle() Style {
 		}
 		if f.underline {
 			s.Underline = true
+		}
+		if f.strikethrough {
+			s.Strikethrough = true
+		}
+		if f.monospace {
+			s.Monospace = true
 		}
 	}
 	return s
