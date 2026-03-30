@@ -28,7 +28,6 @@ package treemap
 
 import (
 	"math"
-
 	"github.com/gvanbeck/nautilus/pdf"
 	"github.com/gvanbeck/nautilus/pdf/chart"
 	"github.com/gvanbeck/nautilus/pdf/chart/internal/render"
@@ -228,7 +227,7 @@ func squarifySlice(items []tmItem, x, y, w, h float64, result *[]tmRect) {
 	remaining := items
 
 	for len(remaining) > 0 {
-		candidate := append(row, remaining[0])
+		candidate := append(append([]tmItem{}, row...), remaining[0])
 		if len(row) > 0 && worstAspect(row, shortSide) < worstAspect(candidate, shortSide) {
 			break
 		}
@@ -242,21 +241,17 @@ func squarifySlice(items []tmItem, x, y, w, h float64, result *[]tmRect) {
 		rowSum += it.value
 	}
 
-	totalArea := w * h
-	rowTotal := 0.0
+	itemTotal := 0.0
 	for _, it := range items {
-		rowTotal += it.value
+		itemTotal += it.value
 	}
-
-	rowH := rowSum / rowTotal * h
-	rowW := rowSum / rowTotal * w
 
 	var rx, ry, rw, rh float64
 	var nx, ny, nw, nh float64
 
 	if w >= h {
 		// Lay row as a column on the left.
-		rw = rowSum / rowTotal * w
+		rw = rowSum / itemTotal * w
 		rh = h
 		rx = x
 		ry = y
@@ -264,18 +259,16 @@ func squarifySlice(items []tmItem, x, y, w, h float64, result *[]tmRect) {
 		ny = y
 		nw = w - rw
 		nh = h
-		_ = rowH
 	} else {
 		// Lay row as a strip at the top.
 		rw = w
-		rh = rowSum / rowTotal * h
+		rh = rowSum / itemTotal * h
 		rx = x
 		ry = y
 		nx = x
 		ny = y + rh
 		nw = w
 		nh = h - rh
-		_ = rowW
 	}
 
 	// Place items within the row.
@@ -293,7 +286,6 @@ func squarifySlice(items []tmItem, x, y, w, h float64, result *[]tmRect) {
 		*result = append(*result, ir)
 	}
 
-	_ = totalArea
 	squarifySlice(remaining, nx, ny, nw, nh, result)
 }
 

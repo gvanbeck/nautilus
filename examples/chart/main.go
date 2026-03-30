@@ -35,8 +35,8 @@ import (
 )
 
 func main() {
-	fontPath := flag.String("font", "", "Path to regular TTF/OTF font (required)")
-	boldPath := flag.String("bold", "", "Path to bold TTF/OTF font (optional)")
+	fontPath := flag.String("font", "", "Path to regular TTF font (required)")
+	boldPath := flag.String("bold", "", "Path to bold TTF font (optional)")
 	outPath := flag.String("out", "chart_output.pdf", "Output PDF path")
 	flag.Parse()
 
@@ -290,8 +290,8 @@ func main() {
 		YAxis:    &chart.Axis{Min: chart.Float(0), Max: chart.Float(200)},
 		Series:   []chart.Series{{Name: "Speed km/h", Data: []float64{120}}},
 		PlotOptions: &chart.PlotOptions{Gauge: &chart.GaugeOptions{
-			PaneStartAngle: -150,
-			PaneEndAngle:   150,
+			PaneStartAngle: chart.Float(-150),
+			PaneEndAngle:   chart.Float(150),
 			PlotBands: []chart.GaugePlotBand{
 				{From: 0, To: 80, Color: pdf.Color{R: 85, G: 191, B: 59}, Thickness: 12},
 				{From: 80, To: 140, Color: pdf.Color{R: 221, G: 223, B: 13}, Thickness: 12},
@@ -310,8 +310,8 @@ func main() {
 		YAxis:    &chart.Axis{Min: chart.Float(0), Max: chart.Float(100)},
 		Series:   []chart.Series{{Name: "Activity", Data: []float64{84}}},
 		PlotOptions: &chart.PlotOptions{Gauge: &chart.GaugeOptions{
-			PaneStartAngle: -90,
-			PaneEndAngle:   90,
+			PaneStartAngle: chart.Float(-90),
+			PaneEndAngle:   chart.Float(90),
 			Solid:          true,
 			PlotBands: []chart.GaugePlotBand{
 				{From: 0, To: 100, Color: pdf.Color{R: 230, G: 230, B: 230}, Thickness: 20},

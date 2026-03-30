@@ -88,15 +88,7 @@ func (c *WaterfallChart) Draw(doc *pdf.Document, x, y, width, height float64) er
 	for i, p := range points {
 		var b bar
 		b.name = p.Name
-		if p.IsSum {
-			b.isSum = true
-			b.bottom = 0
-			b.top = running
-			b.color = sumColor
-			if p.Color != nil {
-				b.color = *p.Color
-			}
-		} else if p.IsIntermediateSum {
+		if p.IsSum || p.IsIntermediateSum {
 			b.isSum = true
 			b.bottom = 0
 			b.top = running
@@ -165,7 +157,6 @@ func (c *WaterfallChart) Draw(doc *pdf.Document, x, y, width, height float64) er
 	}
 	yAxisArea := render.Area{X: x, Y: top, W: yAxisW, H: plot.H}
 	xLabelY := plot.Bottom() + 4
-	_ = xAxisH
 
 	if err := render.DrawYAxis(doc, opts, plot, yAxisArea, yMin, yMax, yStep); err != nil {
 		return err

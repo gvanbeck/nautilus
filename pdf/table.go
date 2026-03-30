@@ -335,6 +335,11 @@ func (t *Table) Draw() error {
 		return err
 	}
 
+	// Pre-compute resolved styles once per cell.
+	for i := range placed {
+		placed[i].style = t.resolveStyle(placed[i].cell, t.rows[placed[i].row].Background)
+	}
+
 	// ── Step 2: compute column x positions ──────────────────────────────
 	colX := t.colPositions()
 
@@ -392,77 +397,8 @@ func (t *Table) Draw() error {
 			continue
 		}
 
-		// Compute absolute Y per row in this group.
-		rowY := make([]float64, grp.endRow-grp.startRow+1)
-		y := curY
-		for i := range rowY {
-			rowY[i] = y
-			y += rowH[grp.startRow+i]
-		}
-
-		// Cells that start within this group.
-		var groupCells []placedCell
-		for _, pc := range placed {
-			if pc.row >= grp.startRow && pc.row <= grp.endRow {
-				groupCells = append(groupCells, pc)
-			}
-		}
-
-		// ── Pass 1: backgrounds ──────────────────────────────────────
-		for _, pc := range groupCells {
-			style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
-			if style.Background == nil {
-				continue
-			}
-			cellY := rowY[pc.row-grp.startRow]
-			cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
-			t.doc.pdf.SetFillColor(style.Background.R, style.Background.G, style.Background.B)
-			t.doc.pdf.RectFromUpperLeftWithStyle(colX[pc.col], cellY, pc.width, cellH, "F")
-		}
-
-		// ── Pass 2: text ─────────────────────────────────────────────
-		for _, pc := range groupCells {
-			style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
-
-			cellY := rowY[pc.row-grp.startRow]
-			cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
-			contentX := colX[pc.col] + style.Padding.Left
-			contentY := cellY + style.Padding.Top
-			contentW := pc.width - style.Padding.Left - style.Padding.Right
-
-			// Apply font.
-			if fn, fs := t.effectiveFont(style); fn != "" {
-				t.doc.SetFont(fn, fs) //nolint:errcheck
-			}
-
-			// Apply text color.
-			if style.TextColor != nil {
-				t.doc.SetTextColor(style.TextColor.R, style.TextColor.G, style.TextColor.B)
-			} else {
-				t.doc.SetTextColor(0, 0, 0)
-			}
-
-			if contentW > 0 {
-				if pc.cell.Spans != nil {
-					if err := t.renderCellSpans(pc.cell.Spans, contentX, contentY, contentW, cellH, style); err != nil {
-						return err
-					}
-				} else if pc.cell.Text != "" {
-					if err := t.renderCellText(pc.cell.Text, contentX, contentY, contentW, cellH, style); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		// ── Pass 3: cell borders ─────────────────────────────────────
-		for _, pc := range groupCells {
-			style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
-			cellY := rowY[pc.row-grp.startRow]
-			cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
-			if err := t.doc.DrawBorder(colX[pc.col], cellY, pc.width, cellH, style.Border); err != nil {
-				return err
-			}
+		if err := t.renderCellGroup(placed, rowH, colX, curY, grp.startRow, grp.endRow); err != nil {
+			return err
 		}
 
 		curY += grpH
@@ -487,7 +423,8 @@ type placedCell struct {
 	rowSpan  int
 	colSpan  int
 	cell     Cell
-	width    float64 // sum of column widths for colSpan columns
+	width    float64   // sum of column widths for colSpan columns
+	style    CellStyle // resolved style (computed once, reused across passes)
 }
 
 // rowGroup is a set of consecutive rows that must land on the same page.
@@ -856,6 +793,15 @@ func (t *Table) drawSegmentBorder(topY, height float64, isFirst, isLast bool) er
 // renderRowRange renders the cells in rows [startRow, endRow] (inclusive) at
 // the given topY position.  Used to re-draw header rows after page overflow.
 func (t *Table) renderRowRange(placed []placedCell, rowH []float64, colX []float64, topY float64, startRow, endRow int) error {
+	return t.renderCellGroup(placed, rowH, colX, topY, startRow, endRow)
+}
+
+// renderCellGroup is the shared 3-pass rendering helper used by both Draw
+// (for each row group) and renderRowRange (for repeated header rows).
+// It renders backgrounds, then text, then borders for all placed cells whose
+// starting row falls within [startRow, endRow].  topY is the Y coordinate
+// of the first row; per-row Y positions are computed from rowH.
+func (t *Table) renderCellGroup(placed []placedCell, rowH []float64, colX []float64, topY float64, startRow, endRow int) error {
 	// Collect cells that start within the range.
 	var cells []placedCell
 	for _, pc := range placed {
@@ -864,30 +810,32 @@ func (t *Table) renderRowRange(placed []placedCell, rowH []float64, colX []float
 		}
 	}
 
-	// Build per-row Y positions relative to topY.
-	rowY := make(map[int]float64, endRow-startRow+1)
+	// Build per-row Y positions as a slice with offset indexing.
+	rowYSlice := make([]float64, endRow-startRow+1)
 	y := topY
-	for r := startRow; r <= endRow; r++ {
-		rowY[r] = y
-		y += rowH[r]
+	for i := range rowYSlice {
+		rowYSlice[i] = y
+		y += rowH[startRow+i]
 	}
 
 	// Pass 1: backgrounds.
 	for _, pc := range cells {
-		style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
+		style := pc.style
 		if style.Background == nil {
 			continue
 		}
+		cellY := rowYSlice[pc.row-startRow]
 		cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
 		t.doc.pdf.SetFillColor(style.Background.R, style.Background.G, style.Background.B)
-		t.doc.pdf.RectFromUpperLeftWithStyle(colX[pc.col], rowY[pc.row], pc.width, cellH, "F")
+		t.doc.pdf.RectFromUpperLeftWithStyle(colX[pc.col], cellY, pc.width, cellH, "F")
 	}
 	// Pass 2: text.
 	for _, pc := range cells {
-		style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
+		style := pc.style
+		cellY := rowYSlice[pc.row-startRow]
 		cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
 		contentX := colX[pc.col] + style.Padding.Left
-		contentY := rowY[pc.row] + style.Padding.Top
+		contentY := cellY + style.Padding.Top
 		contentW := pc.width - style.Padding.Left - style.Padding.Right
 		if fn, fs := t.effectiveFont(style); fn != "" {
 			t.doc.SetFont(fn, fs) //nolint:errcheck
@@ -911,9 +859,10 @@ func (t *Table) renderRowRange(placed []placedCell, rowH []float64, colX []float
 	}
 	// Pass 3: borders.
 	for _, pc := range cells {
-		style := t.resolveStyle(pc.cell, t.rows[pc.row].Background)
+		style := pc.style
+		cellY := rowYSlice[pc.row-startRow]
 		cellH := sumF(rowH[pc.row : pc.row+pc.rowSpan])
-		if err := t.doc.DrawBorder(colX[pc.col], rowY[pc.row], pc.width, cellH, style.Border); err != nil {
+		if err := t.doc.DrawBorder(colX[pc.col], cellY, pc.width, cellH, style.Border); err != nil {
 			return err
 		}
 	}
@@ -1076,7 +1025,7 @@ func (t *Table) wrapSpans(spans []RichSpan, contentW, defSize float64, defFont s
 		// Merge with the last run when font and colour match.
 		if len(curLine) > 0 {
 			last := &curLine[len(curLine)-1]
-			if last.fontName == w.fontName && last.color == w.color {
+			if last.fontName == w.fontName && colorEqual(last.color, w.color) {
 				last.text += prefix + w.text
 				curWidth += spaceWidth + wordWidth
 				firstOnLine = false
@@ -1194,6 +1143,18 @@ func (t *Table) renderCellSpans(spans []RichSpan, contentX, contentY, contentW, 
 }
 
 // sumF returns the sum of a float64 slice.
+// colorEqual reports whether two *Color pointers represent the same color.
+// Two nil pointers are equal; a nil and non-nil pointer are not.
+func colorEqual(a, b *Color) bool {
+	if a == b {
+		return true // same pointer (including both nil)
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 func sumF(values []float64) float64 {
 	s := 0.0
 	for _, v := range values {

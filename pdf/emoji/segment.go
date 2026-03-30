@@ -2,6 +2,7 @@ package emoji
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/forPelevin/gomoji"
 	"github.com/rivo/uniseg"
@@ -51,7 +52,7 @@ func Split(s string) []Segment {
 		cluster := g.Str()
 
 		kind := KindText
-		if gomoji.ContainsEmoji(cluster) {
+		if couldBeEmoji(cluster) && gomoji.ContainsEmoji(cluster) {
 			kind = KindEmoji
 		}
 
@@ -71,4 +72,49 @@ func Split(s string) []Segment {
 	}
 
 	return segments
+}
+
+// couldBeEmoji is a fast pre-check that returns false when the first rune of
+// cluster is definitely not an emoji.  It checks common emoji Unicode ranges
+// to short-circuit the more expensive gomoji.ContainsEmoji call for plain
+// ASCII and most ordinary text.
+func couldBeEmoji(cluster string) bool {
+	r, _ := utf8.DecodeRuneInString(cluster)
+	if r == utf8.RuneError {
+		return false
+	}
+	// Fast reject: plain ASCII printable text (and control chars) below
+	// the handful of ASCII-range emoji codepoints.
+	// Known ASCII-range emoji: #(0x23), *(0x2A), 0-9 (0x30-0x39) — these
+	// only become emoji when followed by U+FE0F U+20E3 (keycap sequence),
+	// but the grapheme cluster will contain those extra runes, so len > 1.
+	if r < 0x80 {
+		if len(cluster) > 1 && (r == '#' || r == '*' || (r >= '0' && r <= '9')) {
+			return true
+		}
+		return false
+	}
+	// Common emoji ranges (non-exhaustive but covers the vast majority):
+	//   U+00A9, U+00AE                 — © ®
+	//   U+200D                         — ZWJ (shouldn't appear alone but be safe)
+	//   U+203C - U+3299                — misc symbols
+	//   U+FE0F                         — variation selector
+	//   U+1F000 - U+1FAFF              — main emoji blocks
+	//   U+E0020 - U+E007F              — tag sequences
+	if r == 0xA9 || r == 0xAE {
+		return true
+	}
+	if r >= 0x200D && r <= 0x3299 {
+		return true
+	}
+	if r >= 0xFE00 && r <= 0xFE0F {
+		return true
+	}
+	if r >= 0x1F000 && r <= 0x1FAFF {
+		return true
+	}
+	if r >= 0xE0020 && r <= 0xE007F {
+		return true
+	}
+	return false
 }

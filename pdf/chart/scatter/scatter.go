@@ -48,7 +48,7 @@ func (c *ScatterChart) Draw(doc *pdf.Document, x, y, width, height float64) erro
 
 	// Compute axis ranges from point data.
 	xMin, xMax := render.XDataRange(opts.Series)
-	yDataMin, yDataMax := pointYRange(opts.Series)
+	yDataMin, yDataMax := render.PointYRange(opts.Series)
 	xMin, xMax, xStep := render.NiceRange(xMin, xMax, opts.XAxis)
 	yMin, yMax, yStep := render.NiceRange(yDataMin, yDataMax, opts.YAxis)
 
@@ -59,7 +59,7 @@ func (c *ScatterChart) Draw(doc *pdf.Document, x, y, width, height float64) erro
 		return err
 	}
 
-	m := markerOrDefault(so.Marker)
+	m := render.MarkerOrDefault(so.Marker)
 	markerEnabled := render.BoolVal(m.Enabled, true)
 	markerR := m.Radius
 	if markerR <= 0 {
@@ -90,34 +90,11 @@ func (c *ScatterChart) Draw(doc *pdf.Document, x, y, width, height float64) erro
 	return render.DrawLegend(doc, opts, layout.Legend)
 }
 
-func pointYRange(series []chart.Series) (min, max float64) {
-	first := true
-	for _, s := range series {
-		for _, p := range s.Points {
-			if first || p.Y < min {
-				min = p.Y
-				first = false
-			}
-			if p.Y > max {
-				max = p.Y
-			}
-		}
-	}
-	return
-}
-
 func scatterOptions(opts chart.Options) *chart.ScatterOptions {
 	if opts.PlotOptions != nil && opts.PlotOptions.Scatter != nil {
 		return opts.PlotOptions.Scatter
 	}
 	return &chart.ScatterOptions{}
-}
-
-func markerOrDefault(m *chart.Marker) *chart.Marker {
-	if m != nil {
-		return m
-	}
-	return &chart.Marker{}
 }
 
 // Ensure ScatterChart implements chart.Drawable.

@@ -1,9 +1,14 @@
 // Command basic demonstrates the nautilus PDF library.
 //
-// It generates output.pdf containing three pages:
+// It generates output.pdf with pages covering the main API surfaces:
 //   - A cover page with title, subtitle, and emoji characters
-//   - A content page with Unicode and font-size demonstrations
-//   - A third page with word-wrap demonstration
+//   - Unicode and font-size demonstrations
+//   - Word-wrap and emoji inline text
+//   - Border style showcase
+//   - Frame / minipage layout (callout boxes, two-column, nested frames)
+//   - Tables with colspan, rowspan, and cell alignment
+//   - Images: header banner, side-by-side with text, and a gopher grid
+//   - A long table that overflows across pages
 //
 // Every page carries a header with the document title and a footer showing
 // "Page N of M" – rendered via the two-pass Build mechanism so the total page
@@ -15,10 +20,12 @@
 //	    -font /Library/Fonts/Lato-Medium.ttf \
 //	    -bold /Library/Fonts/Lato-Black.ttf \
 //	    -emoji assets/emoji/png/128 \
+//	    -images assets/images \
 //	    -out output.pdf
 //
-// The -emoji flag is optional; emoji characters are silently skipped when
-// omitted.
+// The -emoji and -images flags are optional; the corresponding demos are
+// silently skipped when the directories are omitted or contain no matching
+// files.
 //
 // # Obtaining Noto Emoji PNGs (Apache 2.0)
 //
@@ -31,15 +38,17 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/gvanbeck/nautilus/pdf"
 	"github.com/gvanbeck/nautilus/pdf/emoji"
 )
 
 func main() {
-	fontPath := flag.String("font", "/Library/Fonts/Lato-Medium.ttf", "path to regular TTF or OTF font")
-	boldPath := flag.String("bold", "/Library/Fonts/Lato-Black.ttf", "path to bold TTF or OTF font (optional)")
+	fontPath := flag.String("font", "/Library/Fonts/Lato-Medium.ttf", "path to regular TTF font")
+	boldPath := flag.String("bold", "/Library/Fonts/Lato-Black.ttf", "path to bold TTF font (optional)")
 	emojiDir := flag.String("emoji", "", "directory with Noto Emoji PNG files (optional)")
+	imagesDir := flag.String("images", "assets/images", "directory with demo images (optional)")
 	outPath := flag.String("out", "output.pdf", "output PDF file path")
 	flag.Parse()
 
@@ -62,7 +71,7 @@ func main() {
 
 	// ── Register fonts ────────────────────────────────────────────────────
 	if _, err := os.Stat(*fontPath); err != nil {
-		log.Fatalf("regular font not found at %q\nUse -font to specify a TTF or OTF file.", *fontPath)
+		log.Fatalf("regular font not found at %q\nUse -font to specify a TTF file.", *fontPath)
 	}
 	if err := doc.RegisterFont("regular", *fontPath); err != nil {
 		log.Fatalf("register regular font: %v", err)
@@ -210,7 +219,7 @@ func main() {
 		doc.SetTextColor(40, 40, 40)
 		bullets := []string{
 			"📄  A3 · A4 · A5 · Letter · Legal paper formats",
-			"🔤  TTF and OTF font support",
+			"🔤  TTF font support",
 			"🌍  Full Unicode — CJK, Arabic, accented Latin, Cyrillic",
 			"😀  Emoji via inline PNG substitution (Noto Emoji)",
 			"📐  Automatic word wrapping",
@@ -658,6 +667,92 @@ func main() {
 		if err := tbl.Draw(); err != nil {
 			log.Fatalf("draw table: %v", err)
 		}
+
+		// ── Page 7: Images ────────────────────────────────────────────────
+		doc.AddPage()
+
+		contentY = 60.0
+		contentY = section("Images — DrawImage API", contentY)
+		contentY = body("DrawImage renders a JPEG or PNG at any position and size.\n"+
+			"Aspect ratio is controlled by the caller; images are scaled to fit the given rectangle.", contentY)
+		contentY += 8
+
+		// Helper: draw an image only when the file exists.
+		drawImg := func(name string, x, y, w, h float64) {
+			if *imagesDir == "" {
+				return
+			}
+			p := filepath.Join(*imagesDir, name)
+			if _, err := os.Stat(p); err != nil {
+				return
+			}
+			if err := doc.DrawImage(p, x, y, w, h); err != nil {
+				log.Printf("warning: DrawImage %s: %v", name, err)
+			}
+		}
+
+		// ── Header banner ─────────────────────────────────────────────
+		bannerH := 60.0
+		drawImg("go-header.jpg", marginLeft, contentY, contentW, bannerH)
+		// Caption below banner.
+		setFont("regular", 8)
+		doc.SetTextColor(100, 100, 100)
+		doc.WriteLine("go-header.jpg — full-width banner (JPEG)", marginLeft, contentY+bannerH+3) //nolint
+		contentY += bannerH + 18
+
+		// ── Image alongside text ──────────────────────────────────────
+		imgW := 90.0
+		imgH := 90.0
+		drawImg("gopher-laptop.png", marginLeft, contentY, imgW, imgH)
+
+		textX := marginLeft + imgW + 14
+		textAvailW := contentW - imgW - 14
+		setFont("regular", 10)
+		doc.SetTextColor(40, 40, 40)
+		doc.WriteText( //nolint
+			"Images can be placed alongside text by choosing x/y/width/height manually.\n\n"+
+				"Here a 90×90 pt gopher PNG sits to the left of this paragraph. "+
+				"The text block starts at x = marginLeft + imageWidth + gutter and uses "+
+				"the remaining content width so the two columns sit neatly side by side.\n\n"+
+				"Any PNG or JPEG file path is accepted; images are embedded in the PDF.",
+			textX, contentY, textAvailW,
+		)
+		contentY += imgH + 20
+
+		// ── Gopher grid ───────────────────────────────────────────────
+		contentY = section("Gopher gallery — uniform grid", contentY)
+
+		gopherFiles := []string{
+			"gopher.png",
+			"gopher-front.png",
+			"gopher-doc.png",
+			"gopher-help.png",
+			"gopher-nerdy.png",
+			"gopher-run.png",
+			"gopher-pilot.png",
+			"gopher-talks.png",
+			"gopher-share.png",
+		}
+		cols := 3
+		cellSize := (contentW - float64(cols-1)*8) / float64(cols)
+		gx, gy := marginLeft, contentY
+		for i, name := range gopherFiles {
+			col := i % cols
+			row := i / cols
+			ix := gx + float64(col)*(cellSize+8)
+			iy := gy + float64(row)*(cellSize+4)
+			drawImg(name, ix, iy, cellSize, cellSize)
+		}
+		rows := (len(gopherFiles) + cols - 1) / cols
+		contentY += float64(rows)*(cellSize+4) + 4
+
+		setFont("regular", 8)
+		doc.SetTextColor(100, 100, 100)
+		doc.WriteLine( //nolint
+			fmt.Sprintf("%d PNG images rendered in a %d-column grid (%.0f×%.0f pt each)",
+				len(gopherFiles), cols, cellSize, cellSize),
+			marginLeft, contentY,
+		)
 
 		// ── Page 7+: Long table that overflows across pages ────────────────
 		doc.AddPage()

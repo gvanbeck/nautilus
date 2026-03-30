@@ -82,7 +82,7 @@ func (c *DumbbellChart) Draw(doc *pdf.Document, x, y, width, height float64) err
 	if lw <= 0 {
 		lw = 2
 	}
-	m := markerOrDefault(do.Marker)
+	m := render.MarkerOrDefault(do.Marker)
 	markerR := m.Radius
 	if markerR <= 0 {
 		markerR = 4
@@ -118,13 +118,6 @@ func (c *DumbbellChart) Draw(doc *pdf.Document, x, y, width, height float64) err
 	}
 
 	return render.DrawLegend(doc, opts, layout.Legend)
-}
-
-func markerOrDefault(m *chart.Marker) *chart.Marker {
-	if m != nil {
-		return m
-	}
-	return &chart.Marker{}
 }
 
 func dumbbellOptions(opts chart.Options) *chart.DumbbellOptions {

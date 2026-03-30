@@ -89,14 +89,17 @@ func (dt *DocTemplate) Build(story []Flowable) error {
 	}
 
 	noProgress := 0 // consecutive attempts without placing a flowable
+	idx := 0        // index-based cursor into queue
 
-	for len(queue) > 0 {
-		f := queue[0]
-		queue = queue[1:]
+	for idx < len(queue) {
+		f := queue[idx]
+		idx++
 
 		// ActionFlowables are executed immediately without taking space.
 		if af, ok := f.(ActionFlowable); ok {
-			af.apply(dt)
+			if err := af.apply(dt); err != nil {
+				return err
+			}
 			noProgress = 0
 			continue
 		}
@@ -104,9 +107,9 @@ func (dt *DocTemplate) Build(story []Flowable) error {
 		// Collect keepWithNext chains and wrap them in KeepTogether.
 		if f.KeepWithNext() {
 			group := []Flowable{f}
-			for len(queue) > 0 && group[len(group)-1].KeepWithNext() {
-				group = append(group, queue[0])
-				queue = queue[1:]
+			for idx < len(queue) && group[len(group)-1].KeepWithNext() {
+				group = append(group, queue[idx])
+				idx++
 			}
 			if len(group) > 1 {
 				f = &KeepTogether{Flowables: group}
@@ -116,7 +119,11 @@ func (dt *DocTemplate) Build(story []Flowable) error {
 		frame := dt.currentFrame()
 
 		// Attempt to place the flowable without splitting.
-		if frame.add(f, dt.doc) {
+		placed, err := frame.add(f, dt.doc)
+		if err != nil {
+			return err
+		}
+		if placed {
 			noProgress = 0
 			continue
 		}
@@ -124,9 +131,10 @@ func (dt *DocTemplate) Build(story []Flowable) error {
 		// Try to split the flowable.
 		parts := frame.split(f, dt.doc)
 		if len(parts) > 0 {
-			// Re-queue all parts (including first) so ActionFlowables
-			// among them are processed correctly by the main loop.
-			queue = append(parts, queue...)
+			// Insert split parts at the current position so they are
+			// processed next by the main loop.
+			tail := append(parts, queue[idx:]...)
+			queue = append(queue[:idx], tail...)
 			noProgress = 0
 			continue
 		}
@@ -136,8 +144,8 @@ func (dt *DocTemplate) Build(story []Flowable) error {
 		if noProgress > 10 {
 			return fmt.Errorf("layout: flowable %T cannot fit in any frame", f)
 		}
-		// Re-queue the flowable for the next frame.
-		queue = append([]Flowable{f}, queue...)
+		// Re-insert the flowable at the current position for the next frame.
+		queue = append(queue[:idx], append([]Flowable{f}, queue[idx:]...)...)
 		if err := dt.advanceFrame(); err != nil {
 			return err
 		}

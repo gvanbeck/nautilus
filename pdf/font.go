@@ -11,7 +11,6 @@ type fontFormat int
 
 const (
 	fontFormatTTF fontFormat = iota
-	fontFormatOTF
 )
 
 // detectFontFormat infers the font format from the file extension.
@@ -20,23 +19,19 @@ func detectFontFormat(path string) (fontFormat, error) {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".ttf":
 		return fontFormatTTF, nil
-	case ".otf":
-		return fontFormatOTF, nil
 	default:
-		return 0, fmt.Errorf("pdf: unsupported font format %q (use .ttf or .otf)", filepath.Ext(path))
+		return 0, fmt.Errorf("pdf: unsupported font format %q (only .ttf is supported)", filepath.Ext(path))
 	}
 }
 
-// RegisterFont loads a TrueType (.ttf) or OpenType (.otf) font from path and
-// registers it under name.  The name is used later when calling SetFont.
+// RegisterFont loads a TrueType (.ttf) font from path and registers it under
+// name.  The name is used later when calling SetFont.
 //
 // Multiple fonts can be registered under different names, for example:
 //
 //	doc.RegisterFont("regular", "NotoSans-Regular.ttf")
 //	doc.RegisterFont("bold",    "NotoSans-Bold.ttf")
 //	doc.RegisterFont("italic",  "NotoSans-Italic.ttf")
-//
-// Both TTF and OTF files are supported.
 func (d *Document) RegisterFont(name, path string) error {
 	if name == "" {
 		return fmt.Errorf("pdf: font name must not be empty")
@@ -48,8 +43,7 @@ func (d *Document) RegisterFont(name, path string) error {
 	}
 
 	switch format {
-	case fontFormatTTF, fontFormatOTF:
-		// gopdf uses AddTTFFont for both TTF and OTF files.
+	case fontFormatTTF:
 		if err := d.pdf.AddTTFFont(name, path); err != nil {
 			return fmt.Errorf("pdf: register font %q from %q: %w", name, path, err)
 		}

@@ -50,7 +50,7 @@ func (c *BubbleChart) Draw(doc *pdf.Document, x, y, width, height float64) error
 	}
 
 	xDataMin, xDataMax := render.XDataRange(opts.Series)
-	yDataMin, yDataMax := pointYRange(opts.Series)
+	yDataMin, yDataMax := render.PointYRange(opts.Series)
 	zDataMin, zDataMax := render.ZDataRange(opts.Series)
 
 	xMin, xMax, xStep := render.NiceRange(xDataMin, xDataMax, opts.XAxis)
@@ -58,11 +58,11 @@ func (c *BubbleChart) Draw(doc *pdf.Document, x, y, width, height float64) error
 
 	// Z range for radius scaling.
 	zMin, zMax := zDataMin, zDataMax
-	if bo.ZMin != 0 {
-		zMin = bo.ZMin
+	if bo.ZMin != nil {
+		zMin = *bo.ZMin
 	}
-	if bo.ZMax != 0 {
-		zMax = bo.ZMax
+	if bo.ZMax != nil {
+		zMax = *bo.ZMax
 	}
 	if zMax == zMin {
 		zMax = zMin + 1
@@ -108,22 +108,6 @@ func (c *BubbleChart) Draw(doc *pdf.Document, x, y, width, height float64) error
 	}
 
 	return render.DrawLegend(doc, opts, layout.Legend)
-}
-
-func pointYRange(series []chart.Series) (min, max float64) {
-	first := true
-	for _, s := range series {
-		for _, p := range s.Points {
-			if first || p.Y < min {
-				min = p.Y
-				first = false
-			}
-			if p.Y > max {
-				max = p.Y
-			}
-		}
-	}
-	return
 }
 
 func bubbleOptions(opts chart.Options) *chart.BubbleOptions {

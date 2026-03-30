@@ -73,7 +73,7 @@ type Flowable interface {
 // rather than rendering visible content (e.g. PageBreak, FrameBreak).
 type ActionFlowable interface {
 	Flowable
-	apply(doc *DocTemplate)
+	apply(doc *DocTemplate) error
 }
 
 // baseFlowable provides default no-op implementations for the optional parts

@@ -30,8 +30,8 @@ import (
 )
 
 func main() {
-	fontPath := flag.String("font", "/Library/Fonts/Lato-Medium.ttf", "path to regular TTF/OTF font")
-	boldPath := flag.String("bold", "/Library/Fonts/Lato-Black.ttf", "path to bold TTF/OTF font")
+	fontPath := flag.String("font", "/Library/Fonts/Lato-Medium.ttf", "path to regular TTF font")
+	boldPath := flag.String("bold", "/Library/Fonts/Lato-Black.ttf", "path to bold TTF font")
 	outPath := flag.String("out", "output.pdf", "output PDF path")
 	flag.Parse()
 

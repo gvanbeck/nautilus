@@ -118,9 +118,14 @@ func DataRange(series []chart.Series) (min, max float64) {
 	first := true
 	for _, s := range series {
 		for _, v := range s.Data {
-			if first || v < min {
+			if first {
 				min = v
+				max = v
 				first = false
+				continue
+			}
+			if v < min {
+				min = v
 			}
 			if v > max {
 				max = v
@@ -703,9 +708,14 @@ func XDataRange(series []chart.Series) (min, max float64) {
 	first := true
 	for _, s := range series {
 		for _, p := range s.Points {
-			if first || p.X < min {
+			if first {
 				min = p.X
+				max = p.X
 				first = false
+				continue
+			}
+			if p.X < min {
+				min = p.X
 			}
 			if p.X > max {
 				max = p.X
@@ -720,9 +730,14 @@ func ZDataRange(series []chart.Series) (min, max float64) {
 	first := true
 	for _, s := range series {
 		for _, p := range s.Points {
-			if first || p.Z < min {
+			if first {
 				min = p.Z
+				max = p.Z
 				first = false
+				continue
+			}
+			if p.Z < min {
+				min = p.Z
 			}
 			if p.Z > max {
 				max = p.Z
@@ -791,6 +806,60 @@ func DrawXAxisNumeric(doc *pdf.Document, opts chart.Options, plot, xAxisArea Are
 		}
 	}
 	return nil
+}
+
+// MarkerOrDefault returns marker if non-nil, otherwise a zero-value Marker.
+func MarkerOrDefault(m *chart.Marker) *chart.Marker {
+	if m != nil {
+		return m
+	}
+	return &chart.Marker{}
+}
+
+// PointYRange returns the min and max Y values across all series points.
+func PointYRange(series []chart.Series) (min, max float64) {
+	first := true
+	for _, s := range series {
+		for _, p := range s.Points {
+			if first {
+				min = p.Y
+				max = p.Y
+				first = false
+				continue
+			}
+			if p.Y < min {
+				min = p.Y
+			}
+			if p.Y > max {
+				max = p.Y
+			}
+		}
+	}
+	return
+}
+
+// LowHighRange returns the min and max across Low and High fields of all series points.
+func LowHighRange(series []chart.Series) (min, max float64) {
+	first := true
+	for _, s := range series {
+		for _, p := range s.Points {
+			for _, v := range []float64{p.Low, p.High} {
+				if first {
+					min = v
+					max = v
+					first = false
+					continue
+				}
+				if v < min {
+					min = v
+				}
+				if v > max {
+					max = v
+				}
+			}
+		}
+	}
+	return
 }
 
 // BlendColor interpolates between a and b by t (0=a, 1=b).

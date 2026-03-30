@@ -357,13 +357,12 @@ func findMatchingClose(s, tagName string) int {
 	lname := strings.ToLower(tagName)
 	openPat := "<" + lname
 	closePat := "</" + lname
-	ls := strings.ToLower(s)
 	depth := 1
 	pos := 0
 
 	for pos < len(s) {
-		oi := indexOfTag(ls, openPat, pos)
-		ci := indexOfTag(ls, closePat, pos)
+		oi := indexOfTag(s, openPat, pos)
+		ci := indexOfTag(s, closePat, pos)
 
 		if ci == -1 {
 			return -1
@@ -395,12 +394,13 @@ func findMatchingClose(s, tagName string) int {
 	return -1
 }
 
-// indexOfTag searches for the first occurrence of token in s[from:] where the
-// character immediately following token is a tag boundary (space, >, /, etc.).
+// indexOfTag searches for the first case-insensitive occurrence of token in
+// s[from:] where the character immediately following token is a tag boundary
+// (space, >, /, etc.).  token must already be lowercase.
 // Returns -1 when not found.
 func indexOfTag(s, token string, from int) int {
 	for {
-		idx := strings.Index(s[from:], token)
+		idx := indexFoldASCII(s[from:], token)
 		if idx == -1 {
 			return -1
 		}
@@ -413,6 +413,35 @@ func indexOfTag(s, token string, from int) int {
 	}
 }
 
+// indexFoldASCII returns the index of the first case-insensitive match of
+// needle in haystack.  needle must be lowercase ASCII.  Returns -1 if not found.
+func indexFoldASCII(haystack, needle string) int {
+	nLen := len(needle)
+	if nLen == 0 {
+		return 0
+	}
+	if nLen > len(haystack) {
+		return -1
+	}
+	for i := 0; i <= len(haystack)-nLen; i++ {
+		match := true
+		for j := 0; j < nLen; j++ {
+			hc := haystack[i+j]
+			if hc >= 'A' && hc <= 'Z' {
+				hc += 'a' - 'A'
+			}
+			if hc != needle[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
 func isHTMLTagBoundary(ch byte) bool {
 	return ch == ' ' || ch == '>' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '/'
 }
@@ -421,10 +450,9 @@ func isHTMLTagBoundary(ch byte) bool {
 // starting at pos.  Returns inner content, the position after the closing tag,
 // and whether the block was found.
 func extractBlock(html, tagName string, pos int) (inner string, afterBlock int, found bool) {
-	ls := strings.ToLower(html)
 	openPat := "<" + strings.ToLower(tagName)
 
-	idx := indexOfTag(ls, openPat, pos)
+	idx := indexOfTag(html, openPat, pos)
 	if idx == -1 {
 		return "", 0, false
 	}
@@ -461,6 +489,9 @@ func skipPastCloseTag(html string, pos int) int {
 //
 //	colspan="2" align="center" style="color: red" nowrap
 func parseAttrs(s string) map[string]string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
 	result := make(map[string]string)
 	i := 0
 	for i < len(s) {
@@ -532,6 +563,9 @@ func parseAttrs(s string) map[string]string {
 // parseStyle parses a CSS style attribute value such as
 // "background-color: #fff; font-weight: bold".
 func parseStyle(s string) map[string]string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
 	result := make(map[string]string)
 	for _, decl := range strings.Split(s, ";") {
 		decl = strings.TrimSpace(decl)
@@ -560,12 +594,11 @@ func isSpace(c byte) bool {
 // replaceBR replaces <br>, <br/>, <br /> (case-insensitive) with newline characters.
 func replaceBR(s string) string {
 	var b strings.Builder
-	ls := strings.ToLower(s)
 	i := 0
 	for i < len(s) {
-		if ls[i] == '<' && i+3 <= len(s) && ls[i:i+3] == "<br" {
+		if (s[i] == '<') && i+3 <= len(s) && (s[i+1] == 'b' || s[i+1] == 'B') && (s[i+2] == 'r' || s[i+2] == 'R') {
 			after := i + 3
-			if after >= len(s) || isHTMLTagBoundary(ls[after]) {
+			if after >= len(s) || isHTMLTagBoundary(s[after]) {
 				b.WriteByte('\n')
 				end := strings.IndexByte(s[i:], '>')
 				if end != -1 {

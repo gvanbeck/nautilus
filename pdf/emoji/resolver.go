@@ -1,10 +1,11 @@
 package emoji
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 // Resolver maps an emoji grapheme cluster to the path of a PNG image file
@@ -38,16 +39,23 @@ type Resolver interface {
 //	"👍🏼"   → "emoji_u1f44d_1f3fc.png"
 //	"👨‍👩‍👧" → "emoji_u1f468_200d_1f469_200d_1f467.png"
 func ClusterToFilename(cluster string) string {
-	var parts []string
+	var b strings.Builder
+	b.WriteString("emoji_u")
+	first := true
 	for _, r := range cluster {
 		// U+FE0F is the variation selector-16 ("emoji presentation").
 		// Noto Emoji filenames omit it.
 		if r == '\uFE0F' {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%x", r))
+		if !first {
+			b.WriteByte('_')
+		}
+		b.WriteString(strconv.FormatInt(int64(r), 16))
+		first = false
 	}
-	return "emoji_u" + strings.Join(parts, "_") + ".png"
+	b.WriteString(".png")
+	return b.String()
 }
 
 // NotoResolver resolves emoji grapheme clusters to Noto Emoji PNG files stored
@@ -63,15 +71,29 @@ type NotoResolver struct {
 	// Dir is the directory that contains the Noto Emoji PNG files.
 	// The files must follow the naming convention produced by ClusterToFilename.
 	Dir string
+
+	// cache stores resolved paths (hits and misses) to avoid repeated os.Stat calls.
+	cache sync.Map // map[string]cachedResult
+}
+
+type cachedResult struct {
+	path  string
+	found bool
 }
 
 // Resolve returns the path to the Noto Emoji PNG for the given cluster.
 // It returns ("", false) when the file does not exist in Dir.
 func (r *NotoResolver) Resolve(cluster string) (string, bool) {
-	name := ClusterToFilename(cluster)
-	path := filepath.Join(r.Dir, name)
-	if _, err := os.Stat(path); err == nil {
-		return path, true
+	if v, ok := r.cache.Load(cluster); ok {
+		cr := v.(cachedResult)
+		return cr.path, cr.found
 	}
+	name := ClusterToFilename(cluster)
+	p := filepath.Join(r.Dir, name)
+	if _, err := os.Stat(p); err == nil {
+		r.cache.Store(cluster, cachedResult{path: p, found: true})
+		return p, true
+	}
+	r.cache.Store(cluster, cachedResult{path: "", found: false})
 	return "", false
 }

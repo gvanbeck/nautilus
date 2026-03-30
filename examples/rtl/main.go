@@ -38,13 +38,13 @@ import (
 
 func main() {
 	arabicFont := flag.String("arabic", "/System/Library/Fonts/Supplemental/Mishafi.ttf",
-		"Arabic TTF/OTF font with Presentation Forms-B (U+FE70–U+FEFF);\n"+
+		"Arabic TTF font with Presentation Forms-B (U+FE70–U+FEFF);\n"+
 			"\talternatives on macOS: /System/Library/Fonts/Supplemental/Arial Unicode.ttf\n"+
 			"\t                       /System/Library/Fonts/Supplemental/Farisi.ttf")
 	hebrewFont := flag.String("hebrew", "/System/Library/Fonts/SFHebrew.ttf",
-		"Hebrew TTF/OTF font")
+		"Hebrew TTF font")
 	latinFont := flag.String("latin", "/Library/Fonts/Lato-Regular.ttf",
-		"Latin TTF/OTF font for labels and LTR content")
+		"Latin TTF font for labels and LTR content")
 	outPath := flag.String("out", "output.pdf", "output PDF file path")
 	flag.Parse()
 

@@ -2,6 +2,7 @@ package rml
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -483,70 +484,52 @@ func (tf *tableFlowable) Draw(doc *pdf.Document, x, y float64) error {
 				}
 
 			case "blockFont":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].fontName = cmd.fontName
-						matrix[r][c].fontSize = cmd.fontSize
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.fontName = cmd.fontName
+					cell.fontSize = cmd.fontSize
+				})
 
 			case "blockTextColor":
 				if c, ok := parseColor(cmd.colorName); ok {
 					cc := c
-					for r := r0; r <= r1 && r < numRows; r++ {
-						for col := c0; col <= c1 && col < numCols; col++ {
-							matrix[r][col].textColor = &cc
-						}
-					}
+					applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+						cell.textColor = &cc
+					})
 				}
 
 			case "blockAlignment":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].halign = cmd.alignment
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.halign = cmd.alignment
+				})
 
 			case "blockValign":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].valign = cmd.valign
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.valign = cmd.valign
+				})
 
 			case "blockLeftPadding":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].leftPadding = cmd.padding
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.leftPadding = cmd.padding
+				})
 			case "blockRightPadding":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].rightPadding = cmd.padding
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.rightPadding = cmd.padding
+				})
 			case "blockTopPadding":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].topPadding = cmd.padding
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.topPadding = cmd.padding
+				})
 			case "blockBottomPadding":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].bottomPadding = cmd.padding
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.bottomPadding = cmd.padding
+				})
 			case "blockPadding":
-				for r := r0; r <= r1 && r < numRows; r++ {
-					for c := c0; c <= c1 && c < numCols; c++ {
-						matrix[r][c].leftPadding = cmd.padding
-						matrix[r][c].rightPadding = cmd.padding
-						matrix[r][c].topPadding = cmd.padding
-						matrix[r][c].bottomPadding = cmd.padding
-					}
-				}
+				applyToRange(matrix, r0, r1, c0, c1, numRows, numCols, func(cell *cellOverride) {
+					cell.leftPadding = cmd.padding
+					cell.rightPadding = cmd.padding
+					cell.topPadding = cmd.padding
+					cell.bottomPadding = cmd.padding
+				})
 			}
 		}
 	}
@@ -588,7 +571,7 @@ func (tf *tableFlowable) Draw(doc *pdf.Document, x, y float64) error {
 		tableBorder = pdf.NewUniformBorder(*outerBorder)
 	}
 
-	hugePB := y + tf.totalHeight() + 9999
+	hugePB := math.MaxFloat64
 
 	tbl := doc.NewTable(pdf.TableConfig{
 		X:                x,
@@ -753,4 +736,13 @@ type cellOverride struct {
 	rightPadding  string
 	bottomPadding string
 	leftPadding   string
+}
+
+// applyToRange applies fn to every cell in the row/col range, clamped to matrix bounds.
+func applyToRange(matrix [][]cellOverride, r0, r1, c0, c1, numRows, numCols int, fn func(*cellOverride)) {
+	for r := r0; r <= r1 && r < numRows; r++ {
+		for c := c0; c <= c1 && c < numCols; c++ {
+			fn(&matrix[r][c])
+		}
+	}
 }

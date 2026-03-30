@@ -30,8 +30,9 @@ type KeepTogether struct {
 	moved bool
 
 	// cached measurement from the last Wrap call
-	cachedWidth float64
-	cachedTotal float64
+	cachedWidth   float64
+	cachedTotal   float64
+	cachedHeights []float64 // per-flowable heights from the last Wrap/measureTotal
 }
 
 // Wrap measures the total height of all contained flowables.
@@ -53,7 +54,14 @@ func (kt *KeepTogether) Draw(doc *pdf.Document, x, y float64) error {
 		if i == 0 {
 			spaceBefore = 0 // suppress leading space at top of the group
 		}
-		_, h := f.Wrap(doc, kt.cachedWidth, math.MaxFloat64)
+		// Reuse cached heights when available and the width hasn't changed;
+		// otherwise re-wrap.
+		var h float64
+		if i < len(kt.cachedHeights) {
+			h = kt.cachedHeights[i]
+		} else {
+			_, h = f.Wrap(doc, kt.cachedWidth, math.MaxFloat64)
+		}
 		if err := f.Draw(doc, x, curY+spaceBefore); err != nil {
 			return err
 		}

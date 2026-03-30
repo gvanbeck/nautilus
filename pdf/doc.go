@@ -1,7 +1,7 @@
 // Package pdf provides a library for generating PDF documents in pure Go.
 //
 // The package supports standard paper formats (A3, A4, A5, Letter, Legal),
-// custom TTF and OTF fonts, full Unicode text, and emoji rendering via PNG
+// custom TTF fonts, full Unicode text, and emoji rendering via PNG
 // image substitution.
 //
 // # Quick start
@@ -46,7 +46,7 @@
 //
 // # Font support
 //
-// Both TTF and OTF fonts are supported.  Fonts must be registered before use
-// with RegisterFont.  Multiple fonts (e.g. regular, bold, italic) can be
-// registered under different names and switched at any time with SetFont.
+// Only TTF fonts are supported.  Fonts must be registered before use with
+// RegisterFont.  Multiple fonts (e.g. regular, bold, italic) can be registered
+// under different names and switched at any time with SetFont.
 package pdf

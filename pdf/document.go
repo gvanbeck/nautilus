@@ -24,6 +24,15 @@ var (
 	PageSizeLegal  = PageSize{Width: 612, Height: 1008}
 )
 
+// Landscape variants of the standard paper sizes (width and height swapped).
+var (
+	PageSizeA3Landscape     = PageSize{Width: 1190.55, Height: 841.89}
+	PageSizeA4Landscape     = PageSize{Width: 841.89, Height: 595.28}
+	PageSizeA5Landscape     = PageSize{Width: 595.28, Height: 419.53}
+	PageSizeLetterLandscape = PageSize{Width: 792, Height: 612}
+	PageSizeLegalLandscape  = PageSize{Width: 1008, Height: 612}
+)
+
 // Margins defines the minimum white space between the page edge and the
 // content area, in points (1 pt = 1/72 inch).
 //
@@ -122,11 +131,20 @@ func New(cfg Config) (*Document, error) {
 	if cfg.PageSize.Width == 0 || cfg.PageSize.Height == 0 {
 		cfg.PageSize = PageSizeA4
 	}
+	if cfg.DefaultFontSize < 0 {
+		return nil, fmt.Errorf("pdf: DefaultFontSize must not be negative, got %f", cfg.DefaultFontSize)
+	}
 	if cfg.DefaultFontSize == 0 {
 		cfg.DefaultFontSize = 12
 	}
+	if cfg.LineHeightFactor < 0 {
+		return nil, fmt.Errorf("pdf: LineHeightFactor must not be negative, got %f", cfg.LineHeightFactor)
+	}
 	if cfg.LineHeightFactor == 0 {
 		cfg.LineHeightFactor = 1.2
+	}
+	if cfg.Margins.Top < 0 || cfg.Margins.Right < 0 || cfg.Margins.Bottom < 0 || cfg.Margins.Left < 0 {
+		return nil, fmt.Errorf("pdf: margins must not be negative")
 	}
 
 	d := &Document{

@@ -216,7 +216,6 @@ func parsePageGraphics(d *xml.Decoder) (graphicsBlock, error) {
 }
 
 func parseGfxElement(d *xml.Decoder, el xml.StartElement) (gfxCmd, error) {
-	defer func() {}() // skip errors from d.Skip
 	switch el.Name.Local {
 	case "saveState":
 		d.Skip() //nolint:errcheck

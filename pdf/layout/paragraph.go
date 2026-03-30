@@ -66,6 +66,9 @@ type Paragraph struct {
 
 	// lines is populated by Wrap and reused by Draw and Split.
 	lines []string
+	// lineBreaks tracks the index of lines that start a new \n-paragraph
+	// (i.e. the first wrapped line of each explicit-newline block).
+	lineBreaks []int
 	// wrapWidth is the availWidth used during the last Wrap call.
 	wrapWidth float64
 }
@@ -78,7 +81,9 @@ func (p *Paragraph) Wrap(doc *pdf.Document, availWidth, _ float64) (float64, flo
 	p.wrapWidth = availWidth
 
 	var allLines []string
+	var lineBreaks []int
 	for _, para := range strings.Split(p.Text, "\n") {
+		lineBreaks = append(lineBreaks, len(allLines))
 		wrapped, err := doc.WrapLine(para, innerW)
 		if err != nil || len(wrapped) == 0 {
 			allLines = append(allLines, "")
@@ -87,6 +92,7 @@ func (p *Paragraph) Wrap(doc *pdf.Document, availWidth, _ float64) (float64, flo
 		}
 	}
 	p.lines = allLines
+	p.lineBreaks = lineBreaks
 
 	return availWidth, float64(len(p.lines)) * p.leading(doc)
 }
@@ -137,18 +143,18 @@ func (p *Paragraph) Split(doc *pdf.Document, availWidth, availHeight float64) []
 		return []Flowable{p} // everything fits (defensive)
 	}
 
-	// Reconstruct text from the pre-wrapped lines.  Joining with a space
-	// is correct because wrapLine splits on spaces; rejoining preserves
-	// the word sequence and re-wrapping will reproduce the same result.
+	// Reconstruct text from the pre-wrapped lines, preserving explicit \n
+	// breaks.  Lines within the same \n-paragraph are joined with a space;
+	// \n-paragraph boundaries are joined with \n.
 	p1 := &Paragraph{
-		Text:  strings.Join(p.lines[:fitLines], " "),
+		Text:  rejoinLines(p.lines[:fitLines], 0, p.lineBreaks),
 		Style: p.Style,
 	}
 	p1.spaceBefore = p.baseFlowable.spaceBefore
 	// No spaceAfter on the first part to avoid extra gap at the frame boundary.
 
 	p2 := &Paragraph{
-		Text:  strings.Join(p.lines[fitLines:], " "),
+		Text:  rejoinLines(p.lines[fitLines:], fitLines, p.lineBreaks),
 		Style: p.Style,
 	}
 	p2.spaceAfter = p.baseFlowable.spaceAfter
@@ -196,6 +202,30 @@ func (p *Paragraph) leading(doc *pdf.Document) float64 {
 		return p.Style.FontSize * 1.2
 	}
 	// Fall back to the document's current line height.
-	_ = doc
 	return 12 * 1.2
+}
+
+// rejoinLines reconstructs text from wrapped lines at global offset startIdx,
+// reinserting \n at the original explicit newline boundaries recorded in
+// lineBreaks (which stores global line indices where \n-paragraphs begin).
+func rejoinLines(lines []string, startIdx int, lineBreaks []int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	breakSet := make(map[int]bool, len(lineBreaks))
+	for _, idx := range lineBreaks {
+		breakSet[idx] = true
+	}
+	var b strings.Builder
+	b.WriteString(lines[0])
+	for i := 1; i < len(lines); i++ {
+		globalIdx := startIdx + i
+		if breakSet[globalIdx] {
+			b.WriteByte('\n')
+		} else {
+			b.WriteByte(' ')
+		}
+		b.WriteString(lines[i])
+	}
+	return b.String()
 }

@@ -56,7 +56,7 @@ func TestGaugeChart_Draw(t *testing.T) {
 		YAxis:  &chart.Axis{Min: chart.Float(0), Max: chart.Float(200)},
 		Series: []chart.Series{{Name: "Speed", Data: []float64{120}}},
 		PlotOptions: &chart.PlotOptions{Gauge: &chart.GaugeOptions{
-			PaneStartAngle: -150, PaneEndAngle: 150,
+			PaneStartAngle: chart.Float(-150), PaneEndAngle: chart.Float(150),
 			PlotBands: []chart.GaugePlotBand{
 				{From: 0, To: 80, Color: pdf.Color{R: 85, G: 191, B: 59}},
 				{From: 80, To: 140, Color: pdf.Color{R: 221, G: 223, B: 13}},
@@ -78,7 +78,7 @@ func TestGaugeChart_Solid(t *testing.T) {
 		YAxis:  &chart.Axis{Min: chart.Float(0), Max: chart.Float(100)},
 		Series: []chart.Series{{Data: []float64{75}}},
 		PlotOptions: &chart.PlotOptions{Gauge: &chart.GaugeOptions{
-			PaneStartAngle: -90, PaneEndAngle: 90, Solid: true,
+			PaneStartAngle: chart.Float(-90), PaneEndAngle: chart.Float(90), Solid: true,
 		}},
 	}
 	if err := (&gauge.GaugeChart{Options: opts}).Draw(doc, 10, 10, 250, 200); err != nil {

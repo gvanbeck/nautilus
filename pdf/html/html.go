@@ -140,6 +140,12 @@ func (p *parser) push(raw string) {
 }
 
 func (p *parser) pop(tagName string) {
+	// Fast path: if the top of the stack matches, just truncate.
+	if n := len(p.stack); n > 0 && p.stack[n-1].tagName == tagName {
+		p.stack = p.stack[:n-1]
+		return
+	}
+	// Slow path: linear scan for misnested tags.
 	for i := len(p.stack) - 1; i >= 0; i-- {
 		if p.stack[i].tagName == tagName {
 			p.stack = append(p.stack[:i], p.stack[i+1:]...)

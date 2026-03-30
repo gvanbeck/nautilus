@@ -82,7 +82,7 @@ func (c *LineChart) Draw(doc *pdf.Document, x, y, width, height float64) error {
 		}
 
 		// Draw markers.
-		m := markerOrDefault(lo.Marker)
+		m := render.MarkerOrDefault(lo.Marker)
 		if render.BoolVal(m.Enabled, true) {
 			r := m.Radius
 			if r <= 0 {
@@ -115,9 +115,3 @@ func lineOptions(opts chart.Options) *chart.LineOptions {
 	return &chart.LineOptions{}
 }
 
-func markerOrDefault(m *chart.Marker) *chart.Marker {
-	if m != nil {
-		return m
-	}
-	return &chart.Marker{}
-}

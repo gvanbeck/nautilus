@@ -25,8 +25,8 @@ func (pb *PageBreak) SpaceBefore() float64                                   { r
 func (pb *PageBreak) SpaceAfter() float64                                    { return 0 }
 func (pb *PageBreak) KeepWithNext() bool                                     { return false }
 func (pb *PageBreak) MinWidth() float64                                      { return 0 }
-func (pb *PageBreak) apply(dt *DocTemplate) {
-	_ = dt.forcePageBreak(pb.NextTemplate)
+func (pb *PageBreak) apply(dt *DocTemplate) error {
+	return dt.forcePageBreak(pb.NextTemplate)
 }
 
 // ── FrameBreak ───────────────────────────────────────────────────────────────
@@ -44,8 +44,8 @@ func (fb *FrameBreak) SpaceBefore() float64                                   { 
 func (fb *FrameBreak) SpaceAfter() float64                                    { return 0 }
 func (fb *FrameBreak) KeepWithNext() bool                                     { return false }
 func (fb *FrameBreak) MinWidth() float64                                      { return 0 }
-func (fb *FrameBreak) apply(dt *DocTemplate) {
-	_ = dt.forceFrameBreak()
+func (fb *FrameBreak) apply(dt *DocTemplate) error {
+	return dt.forceFrameBreak()
 }
 
 // ── CondPageBreak ────────────────────────────────────────────────────────────
@@ -72,10 +72,11 @@ func (cb *CondPageBreak) SpaceBefore() float64                                  
 func (cb *CondPageBreak) SpaceAfter() float64                                    { return 0 }
 func (cb *CondPageBreak) KeepWithNext() bool                                     { return false }
 func (cb *CondPageBreak) MinWidth() float64                                      { return 0 }
-func (cb *CondPageBreak) apply(dt *DocTemplate) {
+func (cb *CondPageBreak) apply(dt *DocTemplate) error {
 	if dt.remainingFrameHeight() < cb.MinHeight {
-		_ = dt.forcePageBreak("")
+		return dt.forcePageBreak("")
 	}
+	return nil
 }
 
 // ── NextPageTemplate ─────────────────────────────────────────────────────────
@@ -104,6 +105,7 @@ func (nt *NextPageTemplate) SpaceBefore() float64                               
 func (nt *NextPageTemplate) SpaceAfter() float64                                    { return 0 }
 func (nt *NextPageTemplate) KeepWithNext() bool                                     { return false }
 func (nt *NextPageTemplate) MinWidth() float64                                      { return 0 }
-func (nt *NextPageTemplate) apply(dt *DocTemplate) {
+func (nt *NextPageTemplate) apply(dt *DocTemplate) error {
 	dt.scheduleTemplateSwitch(nt.TemplateID)
+	return nil
 }

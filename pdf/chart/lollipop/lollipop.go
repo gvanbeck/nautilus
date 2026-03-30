@@ -61,7 +61,7 @@ func (c *LollipopChart) Draw(doc *pdf.Document, x, y, width, height float64) err
 	if lw <= 0 {
 		lw = 1.5
 	}
-	m := markerOrDefault(lo.Marker)
+	m := render.MarkerOrDefault(lo.Marker)
 	markerR := m.Radius
 	if markerR <= 0 {
 		markerR = 5
@@ -92,13 +92,6 @@ func (c *LollipopChart) Draw(doc *pdf.Document, x, y, width, height float64) err
 	}
 
 	return render.DrawLegend(doc, opts, layout.Legend)
-}
-
-func markerOrDefault(m *chart.Marker) *chart.Marker {
-	if m != nil {
-		return m
-	}
-	return &chart.Marker{}
 }
 
 func lollipopOptions(opts chart.Options) *chart.LollipopOptions {

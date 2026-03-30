@@ -8,6 +8,14 @@ import (
 	"github.com/gvanbeck/nautilus/pdf"
 )
 
+// unitFactors maps measurement suffixes to their point conversion factor.
+var unitFactors = map[string]float64{
+	"cm": 28.3465,
+	"mm": 2.83465,
+	"in": 72.0,
+	"pt": 1.0,
+}
+
 // pt converts a measurement string to points.
 // Supported formats: bare number (points), "21cm", "210mm", "8.27in", "595pt".
 func pt(s string) (float64, error) {
@@ -15,12 +23,7 @@ func pt(s string) (float64, error) {
 	if s == "" {
 		return 0, nil
 	}
-	for suf, factor := range map[string]float64{
-		"cm": 28.3465,
-		"mm": 2.83465,
-		"in": 72.0,
-		"pt": 1.0,
-	} {
+	for suf, factor := range unitFactors {
 		if strings.HasSuffix(s, suf) {
 			v, err := strconv.ParseFloat(strings.TrimSuffix(s, suf), 64)
 			if err != nil {
@@ -79,27 +82,29 @@ func parsePageSize(s string) (pdf.PageSize, error) {
 
 // parseColor parses named colors, "#rrggbb", and "r,g,b".
 // Returns (color, true) on success or (zero, false) if s is empty or unknown.
+// namedColors maps color names to their Color values.
+var namedColors = map[string]pdf.Color{
+	"black":     pdf.ColorBlack,
+	"white":     pdf.ColorWhite,
+	"lightgray": pdf.ColorLightGray,
+	"lightgrey": pdf.ColorLightGray,
+	"gray":      pdf.ColorGray,
+	"grey":      pdf.ColorGray,
+	"darkgray":  pdf.ColorDarkGray,
+	"darkgrey":  pdf.ColorDarkGray,
+	"red":       pdf.ColorRed,
+	"green":     pdf.ColorGreen,
+	"blue":      pdf.ColorBlue,
+	"navy":      pdf.ColorNavy,
+	"orange":    pdf.ColorOrange,
+}
+
 func parseColor(s string) (pdf.Color, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return pdf.Color{}, false
 	}
-	named := map[string]pdf.Color{
-		"black":     pdf.ColorBlack,
-		"white":     pdf.ColorWhite,
-		"lightgray": pdf.ColorLightGray,
-		"lightgrey": pdf.ColorLightGray,
-		"gray":      pdf.ColorGray,
-		"grey":      pdf.ColorGray,
-		"darkgray":  pdf.ColorDarkGray,
-		"darkgrey":  pdf.ColorDarkGray,
-		"red":       pdf.ColorRed,
-		"green":     pdf.ColorGreen,
-		"blue":      pdf.ColorBlue,
-		"navy":      pdf.ColorNavy,
-		"orange":    pdf.ColorOrange,
-	}
-	if c, ok := named[strings.ToLower(s)]; ok {
+	if c, ok := namedColors[strings.ToLower(s)]; ok {
 		return c, true
 	}
 	if strings.HasPrefix(s, "#") {
@@ -124,15 +129,6 @@ func parseColor(s string) (pdf.Color, bool) {
 		}
 	}
 	return pdf.Color{}, false
-}
-
-// colorPtr returns a heap-allocated Color or nil when s is empty/unknown.
-func colorPtr(s string) *pdf.Color {
-	c, ok := parseColor(s)
-	if !ok {
-		return nil
-	}
-	return &c
 }
 
 // parseHAlignPDF maps an RML alignment string to pdf.HAlign (for table cells).

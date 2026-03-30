@@ -100,7 +100,7 @@ func (c *AreaChart) Draw(doc *pdf.Document, x, y, width, height float64) error {
 		}
 
 		// Draw markers.
-		m := markerOrDefault(ao.Marker)
+		m := render.MarkerOrDefault(ao.Marker)
 		if render.BoolVal(m.Enabled, true) {
 			r := m.Radius
 			if r <= 0 {
@@ -131,11 +131,4 @@ func areaOptions(opts chart.Options) *chart.AreaOptions {
 		return opts.PlotOptions.Area
 	}
 	return &chart.AreaOptions{}
-}
-
-func markerOrDefault(m *chart.Marker) *chart.Marker {
-	if m != nil {
-		return m
-	}
-	return &chart.Marker{}
 }

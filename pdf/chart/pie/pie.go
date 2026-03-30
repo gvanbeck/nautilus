@@ -117,9 +117,9 @@ func (c *PieChart) Draw(doc *pdf.Document, x, y, width, height float64) error {
 	cy := top + pieAreaH/2
 
 	// Start angle: default −90° (top/12 o'clock) in radians.
-	startDeg := po.StartAngle
-	if startDeg == 0 {
-		startDeg = -90
+	startDeg := -90.0
+	if po.StartAngle != nil {
+		startDeg = *po.StartAngle
 	}
 	angle := startDeg * math.Pi / 180
 

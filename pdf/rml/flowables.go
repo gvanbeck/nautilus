@@ -1,6 +1,7 @@
 package rml
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -252,7 +253,7 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 		}
 	}
 
-	spaceW := p.measureWord(doc, " ", false, false, false)
+	spaceW := p.measureWordStyled(doc, " ", false, false, false)
 
 	for _, w := range words {
 		if w.text == "\n" {
@@ -272,8 +273,10 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 				curW += spaceW + ww
 				continue
 			}
+			// Measure space with the previous span's font for accurate width.
+			prevSpaceW := p.measureWordStyled(doc, " ", last.bold, last.italic, last.monospace)
 			last.text += " "
-			curW += spaceW
+			curW += prevSpaceW
 		}
 		curLine = append(curLine, htmlSpan{
 			text:          w.text,
@@ -287,10 +290,6 @@ func (p *htmlParagraph) buildLines(doc *pdf.Document, innerW float64) []htmlLine
 	}
 	flush()
 	return lines
-}
-
-func (p *htmlParagraph) measureWord(doc *pdf.Document, w string, bold, italic, mono bool) float64 {
-	return p.measureWordStyled(doc, w, bold, italic, mono)
 }
 
 func (p *htmlParagraph) measureWordStyled(doc *pdf.Document, w string, bold, italic, mono bool) float64 {
@@ -383,6 +382,7 @@ type listFlowable struct {
 	spaceBefore float64
 	spaceAfter  float64
 	inner       []layout.Flowable // built during Wrap
+	wrapWidth   float64           // stored from last Wrap call
 }
 
 type listItem struct {
@@ -422,25 +422,14 @@ func (l *listFlowable) buildInner() {
 }
 
 func orderedBullet(n int) string {
-	return strings.TrimSpace(strings.Join([]string{"", itoa(n), "."}, ""))
-}
-
-func itoa(n int) string {
-	if n <= 0 {
-		return "0"
-	}
-	digits := []byte{}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
+	return strconv.Itoa(n) + "."
 }
 
 func (l *listFlowable) Wrap(doc *pdf.Document, availW, availH float64) (float64, float64) {
 	if l.inner == nil {
 		l.buildInner()
 	}
+	l.wrapWidth = availW
 	h := 0.0
 	for _, f := range l.inner {
 		_, fh := f.Wrap(doc, availW, availH-h)
@@ -452,7 +441,7 @@ func (l *listFlowable) Wrap(doc *pdf.Document, availW, availH float64) (float64,
 func (l *listFlowable) Draw(doc *pdf.Document, x, y float64) error {
 	for _, f := range l.inner {
 		y += f.SpaceBefore()
-		_, h := f.Wrap(doc, l.inner[0].MinWidth(), 9999)
+		_, h := f.Wrap(doc, l.wrapWidth, 9999)
 		if err := f.Draw(doc, x, y); err != nil {
 			return err
 		}
@@ -501,6 +490,7 @@ func (l *listFlowable) Split(doc *pdf.Document, availW, availH float64) []layout
 type indentFlowable struct {
 	left, right float64
 	inner       []layout.Flowable
+	wrapWidth   float64 // stored from last Wrap call
 }
 
 func (ind *indentFlowable) SpaceBefore() float64 { return 0 }
@@ -513,6 +503,7 @@ func (ind *indentFlowable) innerW(availW float64) float64 {
 }
 
 func (ind *indentFlowable) Wrap(doc *pdf.Document, availW, availH float64) (float64, float64) {
+	ind.wrapWidth = availW
 	iw := ind.innerW(availW)
 	h := 0.0
 	for _, f := range ind.inner {
@@ -523,7 +514,7 @@ func (ind *indentFlowable) Wrap(doc *pdf.Document, availW, availH float64) (floa
 }
 
 func (ind *indentFlowable) Draw(doc *pdf.Document, x, y float64) error {
-	iw := ind.innerW(999)
+	iw := ind.innerW(ind.wrapWidth)
 	ix := x + ind.left
 	for _, f := range ind.inner {
 		y += f.SpaceBefore()

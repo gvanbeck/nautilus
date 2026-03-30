@@ -51,23 +51,6 @@ func (*gfxPlace) isGfxCmd()        {}
 
 // ─── Parser ──────────────────────────────────────────────────────────────────
 
-// parseGraphicsCommands reads child elements from a decoder until endTag is
-// reached and returns them as []gfxCmd.  Used for <pageGraphics> and <place>.
-func parseGraphicsCommands(d interface {
-	Token() (interface{}, error)
-}, endTag string) ([]gfxCmd, error) {
-	// We use a real *xml.Decoder — import it via the parent parse.go helpers.
-	return nil, nil // placeholder: actual implementation is inlined in parse.go
-}
-
-// ─── Executor ────────────────────────────────────────────────────────────────
-
-// execGraphics runs all commands in a graphicsBlock on doc.
-// pageH is used to convert RML bottom-left y coordinates to top-left.
-func execGraphics(doc *pdf.Document, block graphicsBlock, pageH float64) {
-	execGraphicsWithPage(doc, block, pageH, 0)
-}
-
 // execGraphicsWithPage runs all commands with page number available for %p/%P substitution.
 func execGraphicsWithPage(doc *pdf.Document, block graphicsBlock, pageH float64, pageNum int) {
 	for _, cmd := range block.commands {

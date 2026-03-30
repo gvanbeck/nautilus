@@ -290,8 +290,8 @@ type PieOptions struct {
 	// "" or "0%" renders a standard pie; any other value creates a donut.
 	InnerSize string
 	// StartAngle in degrees.  0 = 3 o'clock (east).
-	// Defaults to -90 (12 o'clock / top).
-	StartAngle float64
+	// Defaults to -90 (12 o'clock / top) when nil.
+	StartAngle *float64
 }
 
 // PolarOptions controls polar (spider/radar) chart rendering.
@@ -325,10 +325,10 @@ type BubbleOptions struct {
 	MinSize float64
 	// MaxSize is the maximum bubble radius in points. Defaults to 30.
 	MaxSize float64
-	// ZMin overrides the minimum z-value for radius scaling. Derived from data when 0.
-	ZMin float64
-	// ZMax overrides the maximum z-value for radius scaling. Derived from data when 0.
-	ZMax    float64
+	// ZMin overrides the minimum z-value for radius scaling. Derived from data when nil.
+	ZMin *float64
+	// ZMax overrides the maximum z-value for radius scaling. Derived from data when nil.
+	ZMax    *float64
 	DataLabels *DataLabels
 }
 
@@ -381,10 +381,10 @@ type GaugePlotBand struct {
 // GaugeOptions controls gauge and solid-gauge chart rendering.
 type GaugeOptions struct {
 	// PaneStartAngle is the start of the gauge arc in degrees.
-	// 0 = east, counterclockwise positive. Default -150 (10 o'clock position).
-	PaneStartAngle float64
-	// PaneEndAngle is the end of the gauge arc in degrees. Default 150 (2 o'clock).
-	PaneEndAngle float64
+	// 0 = east, counterclockwise positive. Default -150 (10 o'clock position) when nil.
+	PaneStartAngle *float64
+	// PaneEndAngle is the end of the gauge arc in degrees. Default 150 (2 o'clock) when nil.
+	PaneEndAngle *float64
 	// PlotBands are colored arc sections on the gauge scale.
 	PlotBands []GaugePlotBand
 	// Solid, when true, draws a solid-gauge (filled arc) instead of a needle gauge.

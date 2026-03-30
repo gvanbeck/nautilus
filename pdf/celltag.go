@@ -171,8 +171,12 @@ func styleFromOpts(opts map[string]string) (CellStyle, error) {
 	}
 	if _, ok := opts["bold"]; ok {
 		// Append "Bold" suffix convention used by most registered font families.
-		// e.g. "Helvetica" → "HelveticaBold"
-		s.FontName = s.FontName + "Bold"
+		// e.g. font=Helvetica + bold → "HelveticaBold"
+		// The bold flag requires font= to be set; without an explicit base font
+		// name there is no way to derive the bold variant.
+		if s.FontName != "" {
+			s.FontName = s.FontName + "Bold"
+		}
 	}
 
 	// size

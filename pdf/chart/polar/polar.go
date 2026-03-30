@@ -193,7 +193,7 @@ func (c *PolarChart) Draw(doc *pdf.Document, x, y, width, height float64) error 
 		lineW = 2
 	}
 
-	m := markerOrDefault(po.Marker)
+	m := render.MarkerOrDefault(po.Marker)
 	markerEnabled := render.BoolVal(m.Enabled, true)
 	markerR := m.Radius
 	if markerR <= 0 {
@@ -325,11 +325,4 @@ func polarOptions(opts chart.Options) *chart.PolarOptions {
 		return opts.PlotOptions.Polar
 	}
 	return &chart.PolarOptions{}
-}
-
-func markerOrDefault(m *chart.Marker) *chart.Marker {
-	if m != nil {
-		return m
-	}
-	return &chart.Marker{}
 }

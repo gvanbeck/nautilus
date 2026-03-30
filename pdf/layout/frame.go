@@ -65,7 +65,7 @@ func (f *LayoutFrame) availHeight() float64 {
 // It calls Wrap to measure the flowable.  If the flowable fits within the
 // remaining space (accounting for spaceBefore), it calls Draw and advances
 // the cursor.  Returns true on success.
-func (f *LayoutFrame) add(flowable Flowable, doc *pdf.Document) bool {
+func (f *LayoutFrame) add(flowable Flowable, doc *pdf.Document) (bool, error) {
 	avW := f.innerWidth()
 
 	spaceBefore := flowable.SpaceBefore()
@@ -75,22 +75,22 @@ func (f *LayoutFrame) add(flowable Flowable, doc *pdf.Document) bool {
 
 	avH := f.availHeight() - spaceBefore
 	if avH < 0 {
-		return false
+		return false, nil
 	}
 
 	_, h := flowable.Wrap(doc, avW, avH)
 	if h > avH {
-		return false
+		return false, nil
 	}
 
 	drawY := f.curY + spaceBefore
 	if err := flowable.Draw(doc, f.contentX(), drawY); err != nil {
-		return false
+		return false, err
 	}
 
 	f.curY = drawY + h + flowable.SpaceAfter()
 	f.atTop = false
-	return true
+	return true, nil
 }
 
 // split asks flowable to split itself to fit within the frame's remaining space.

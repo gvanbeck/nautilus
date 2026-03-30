@@ -77,13 +77,13 @@ func (c *GaugeChart) Draw(doc *pdf.Document, x, y, width, height float64) error 
 	areaW := width
 
 	// Gauge geometry.
-	startDeg := go_.PaneStartAngle
-	if startDeg == 0 {
-		startDeg = -150
+	startDeg := -150.0
+	if go_.PaneStartAngle != nil {
+		startDeg = *go_.PaneStartAngle
 	}
-	endDeg := go_.PaneEndAngle
-	if endDeg == 0 {
-		endDeg = 150
+	endDeg := 150.0
+	if go_.PaneEndAngle != nil {
+		endDeg = *go_.PaneEndAngle
 	}
 
 	// Angles in our system: 0=east, clockwise positive.

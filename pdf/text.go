@@ -123,7 +123,7 @@ func (d *Document) wrapLine(text string, maxWidth float64) ([]string, error) {
 	}
 
 	var lines []string
-	currentLine := ""
+	var currentWords []string
 	currentWidth := 0.0
 
 	for _, word := range words {
@@ -132,24 +132,25 @@ func (d *Document) wrapLine(text string, maxWidth float64) ([]string, error) {
 			return nil, err
 		}
 
-		if currentLine == "" {
+		if len(currentWords) == 0 {
 			// First word on a fresh line — always placed even if it overflows.
-			currentLine = word
+			currentWords = append(currentWords, word)
 			currentWidth = wordWidth
 		} else if currentWidth+spaceWidth+wordWidth <= maxWidth {
 			// Word fits on the current line.
-			currentLine += " " + word
+			currentWords = append(currentWords, word)
 			currentWidth += spaceWidth + wordWidth
 		} else {
 			// Word does not fit — start a new line.
-			lines = append(lines, currentLine)
-			currentLine = word
+			lines = append(lines, strings.Join(currentWords, " "))
+			currentWords = currentWords[:0]
+			currentWords = append(currentWords, word)
 			currentWidth = wordWidth
 		}
 	}
 
-	if currentLine != "" {
-		lines = append(lines, currentLine)
+	if len(currentWords) > 0 {
+		lines = append(lines, strings.Join(currentWords, " "))
 	}
 
 	return lines, nil
@@ -185,9 +186,6 @@ func (d *Document) measureLines(text string, maxWidth float64) (int, error) {
 		} else {
 			total += len(lines)
 		}
-	}
-	if total == 0 {
-		return 1, nil
 	}
 	return total, nil
 }

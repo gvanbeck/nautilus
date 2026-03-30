@@ -113,10 +113,10 @@ func (s *classSample) MinWidth() float64                                     { r
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	fontPath   := flag.String("font",   "/Library/Fonts/Lato-Regular.ttf",        "regular TTF/OTF font")
-	boldPath   := flag.String("bold",   "/Library/Fonts/Lato-Bold.ttf",           "bold TTF/OTF font")
-	italicPath := flag.String("italic", "/Library/Fonts/Lato-Italic.ttf",         "italic TTF/OTF font")
-	monoPath   := flag.String("mono",   "/Library/Fonts/CourierPrime-Regular.ttf", "monospace TTF/OTF font")
+	fontPath   := flag.String("font",   "/Library/Fonts/Lato-Regular.ttf",        "regular TTF font")
+	boldPath   := flag.String("bold",   "/Library/Fonts/Lato-Bold.ttf",           "bold TTF font")
+	italicPath := flag.String("italic", "/Library/Fonts/Lato-Italic.ttf",         "italic TTF font")
+	monoPath   := flag.String("mono",   "/Library/Fonts/CourierPrime-Regular.ttf", "monospace TTF font")
 	outPath    := flag.String("out",    "output.pdf",                              "output PDF file path")
 	flag.Parse()
 

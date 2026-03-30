@@ -163,6 +163,28 @@ func (c *HeatmapChart) Draw(doc *pdf.Document, x, y, width, height float64) erro
 		maxColor = *ho.MaxColor
 	}
 
+	// Set up data label font once before the cell loop (font doesn't change per cell).
+	dataLabelsEnabled := ho.DataLabels != nil && render.BoolVal(ho.DataLabels.Enabled, false) && opts.FontName != ""
+	var labelFS float64
+	if dataLabelsEnabled {
+		labelFS = fs
+		if ho.DataLabels.FontSize > 0 {
+			labelFS = ho.DataLabels.FontSize
+		}
+		fn := opts.FontName
+		if ho.DataLabels.FontName != "" {
+			fn = ho.DataLabels.FontName
+		}
+		if err := doc.SetFont(fn, labelFS); err != nil {
+			return err
+		}
+		c := pdf.ColorBlack
+		if ho.DataLabels.Color != nil {
+			c = *ho.DataLabels.Color
+		}
+		doc.SetTextColor(c.R, c.G, c.B)
+	}
+
 	// Draw cells.
 	for _, cl := range cells {
 		if cl.xi < 0 || cl.xi >= nCols || cl.yi < 0 || cl.yi >= nRows {
@@ -186,26 +208,10 @@ func (c *HeatmapChart) Draw(doc *pdf.Document, x, y, width, height float64) erro
 		}
 
 		// Data label.
-		if ho.DataLabels != nil && render.BoolVal(ho.DataLabels.Enabled, false) && opts.FontName != "" {
-			lfs := fs
-			if ho.DataLabels.FontSize > 0 {
-				lfs = ho.DataLabels.FontSize
-			}
-			fn := opts.FontName
-			if ho.DataLabels.FontName != "" {
-				fn = ho.DataLabels.FontName
-			}
-			if err := doc.SetFont(fn, lfs); err != nil {
-				return err
-			}
-			c := pdf.ColorBlack
-			if ho.DataLabels.Color != nil {
-				c = *ho.DataLabels.Color
-			}
-			doc.SetTextColor(c.R, c.G, c.B)
+		if dataLabelsEnabled {
 			label := render.FormatFloat(cl.z)
 			lw, _ := doc.MeasureText(label)
-			doc.WriteLine(label, cx+cellW/2-lw/2, cy+cellH/2-lfs/2) //nolint:errcheck
+			doc.WriteLine(label, cx+cellW/2-lw/2, cy+cellH/2-labelFS/2) //nolint:errcheck
 		}
 	}
 

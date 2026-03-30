@@ -134,12 +134,13 @@ func (c *BarChart) Draw(doc *pdf.Document, x, y, width, height float64) error {
 
 			rightX := valueToX(v, xMin, xMax, plot)
 			barW := rightX - zeroX
+			barStartX := zeroX
 			if barW < 0 {
 				barW = -barW
-				rightX = zeroX
+				barStartX = rightX
 			}
 
-			doc.FillRect(zeroX, barTop, barW, barH, color)
+			doc.FillRect(barStartX, barTop, barW, barH, color)
 
 			if bo.BorderWidth > 0 {
 				bc := pdf.ColorWhite

@@ -157,7 +157,7 @@ func drawStackedColumns(doc *pdf.Document, opts chart.Options, plot render.Area,
 	}
 
 	for i := 0; i < n; i++ {
-		stackY := zeroY
+		cumSum := 0.0
 		for si := 0; si < ns; si++ {
 			s := opts.Series[si]
 			if i >= len(s.Data) {
@@ -175,14 +175,15 @@ func drawStackedColumns(doc *pdf.Document, opts chart.Options, plot render.Area,
 			}
 
 			barLeft := plot.X + float64(i)*slotW + slotW*groupPad
-			topY := render.ValueToY(plotV, yMin, yMax, plot)
-			barH := stackY - topY
+			topY := render.ValueToY(cumSum+plotV, yMin, yMax, plot)
+			bottomY := render.ValueToY(cumSum, yMin, yMax, plot)
+			barH := bottomY - topY
 			if barH < 0 {
 				barH = 0
 			}
 
 			drawBar(doc, opts, co, barLeft, topY, innerW, barH, v, color)
-			stackY = topY
+			cumSum += plotV
 		}
 	}
 }

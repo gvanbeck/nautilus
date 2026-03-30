@@ -100,9 +100,8 @@ func (c *ErrorbarChart) Draw(doc *pdf.Document, x, y, width, height float64) err
 		if s.Color != nil {
 			color = *s.Color
 		}
-		nPts := len(s.Points)
 		for i, p := range s.Points {
-			cx := render.CategoryCenterX(i, nPts, layout.Plot)
+			cx := render.CategoryCenterX(i, n, layout.Plot)
 			pyLow := render.ValueToY(p.Low, yMin, yMax, layout.Plot)
 			pyHigh := render.ValueToY(p.High, yMin, yMax, layout.Plot)
 
