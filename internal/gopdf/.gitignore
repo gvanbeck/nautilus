@@ -1,0 +1,3 @@
+# Testoutput van de gevendorde gopdf-tests: upstream schrijft die in de boom.
+test/out/
+examples/table/*.pdf

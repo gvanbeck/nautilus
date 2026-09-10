@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gvanbeck/nautilus/pdf/emoji"
-	"github.com/signintech/gopdf"
+	"github.com/gvanbeck/nautilus/internal/gopdf"
 )
 
 // PageSize defines the width and height of a PDF page in points (1 pt = 1/72 inch).

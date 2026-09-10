@@ -6,7 +6,7 @@ import (
 
 	"github.com/gvanbeck/nautilus/pdf/emoji"
 	"github.com/gvanbeck/nautilus/pdf/rtl"
-	"github.com/signintech/gopdf"
+	"github.com/gvanbeck/nautilus/internal/gopdf"
 )
 
 // WriteLine renders text on a single line starting at (x, y).

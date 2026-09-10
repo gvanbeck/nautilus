@@ -3,7 +3,7 @@ package pdf
 import (
 	"math"
 
-	"github.com/signintech/gopdf"
+	"github.com/gvanbeck/nautilus/internal/gopdf"
 )
 
 // Point represents a 2D coordinate in points (1 pt = 1/72 inch).
