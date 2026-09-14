@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
-// pdfReal formatteert een breedte als PDF-reëel getal volgens dezelfde regel
-// als reportlab's fp_str (reportlab/lib/rl_accel.py:41-60): zes significante
-// cijfers, trailing nullen en een trailing punt weggelaten, en alles onder
-// 1e-7 als "0".
+// pdfReal formats a width as a PDF real number following the same rule as
+// reportlab's fp_str (reportlab/lib/rl_accel.py:41-60): six significant
+// digits, trailing zeroes and a trailing period dropped, and anything below
+// 1e-7 as "0".
 //
-// TOEGEVOEGD T.O.V. UPSTREAM. Upstream schreef de /W-array met %d op een
-// afgekapte uint; met float-breedtes is een formatteerregel nodig, en die van
-// reportlab overnemen houdt de twee documenten ook op byteniveau vergelijkbaar.
-// Zie VENDOR.md.
+// ADDED RELATIVE TO UPSTREAM. Upstream wrote the /W array with %d on a
+// truncated uint; float widths need a formatting rule, and adopting
+// reportlab's keeps the two documents comparable at the byte level as well.
+// See VENDOR.md.
 func pdfReal(v float64) string {
 	a := math.Abs(v)
 	if a <= 1e-7 {

@@ -39,9 +39,10 @@ func (ci *CIDFontObj) write(w io.Writer, objID int) error {
 	glyphIndexs := ci.PtrToSubsetFontObj.CharacterToGlyphIndex.AllVals()
 	io.WriteString(w, "/W [")
 	for _, v := range glyphIndexs {
-		// AFWIJKING T.O.V. UPSTREAM: %d op een afgekapte uint -> reëel getal
-		// volgens reportlab's fp_str-regel. Hierdoor accumuleert een viewer de
-		// afkapping niet meer binnen één Tj. Zie pdfReal in reportlab_real.go.
+		// DEVIATION FROM UPSTREAM: %d on a truncated uint -> a real number
+		// following reportlab's fp_str rule. This stops a viewer from
+		// accumulating the truncation within a single Tj. See pdfReal in
+		// reportlab_real.go.
 		width := ci.PtrToSubsetFontObj.GlyphIndexToPdfWidth(v)
 		fmt.Fprintf(w, "%d[%s]", v, pdfReal(width))
 	}

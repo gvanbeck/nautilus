@@ -312,18 +312,18 @@ func createContent(f *SubsetFontObj, text string, fontSize float64, charSpacing 
 	unitsPerEm := int(f.ttfp.UnitsPerEm())
 	var leftRune rune
 	var leftRuneIndex uint
-	// AFWIJKING T.O.V. UPSTREAM: float64 in plaats van int. Reportlab telt de
-	// per-glyph-breedtes als float links-naar-rechts op
-	// (rl_accel.py:106); een int-accumulator kapte elke breedte af.
+	// DEVIATION FROM UPSTREAM: float64 instead of int. Reportlab sums the
+	// per-glyph widths as floats from left to right (rl_accel.py:106); an int
+	// accumulator truncated every width.
 	sumWidth := float64(0)
 	//fmt.Printf("unitsPerEm = %d", unitsPerEm)
 	for i, r := range text {
 
 		glyphindex, err := f.CharIndex(r)
 		if err == ErrCharNotFound {
-			// AFWIJKING T.O.V. UPSTREAM: upstream sloeg het teken over
-			// (breedte 0). Reportlab rekent defaultWidth voor elk teken
-			// buiten de cmap. Zie SubsetFontObj.DefaultWidth.
+			// DEVIATION FROM UPSTREAM: upstream skipped the character
+			// (width 0). Reportlab counts defaultWidth for every character
+			// outside the cmap. See SubsetFontObj.DefaultWidth.
 			sumWidth += f.DefaultWidth()
 			leftRune = r
 			leftRuneIndex = 0
@@ -355,8 +355,8 @@ func createContent(f *SubsetFontObj, text string, fontSize float64, charSpacing 
 	cellWidthPdfUnit := float64(0)
 	cellHeightPdfUnit := float64(0)
 	if rectangle == nil {
-		// AFWIJKING T.O.V. UPSTREAM: reportlab's vermenigvuldigingsorde
-		// (0.001*size*Σ i.p.v. Σ*(size/1000)); scheelt het laatste bit.
+		// DEVIATION FROM UPSTREAM: reportlab's multiplication order
+		// (0.001*size*Σ instead of Σ*(size/1000)); worth the last bit.
 		cellWidthPdfUnit = 0.001 * fontSize * sumWidth
 		typoAscender := convertTypoUnit(float64(f.ttfp.TypoAscender()), f.ttfp.UnitsPerEm(), float64(fontSize))
 		typoDescender := convertTypoUnit(float64(f.ttfp.TypoDescender()), f.ttfp.UnitsPerEm(), float64(fontSize))

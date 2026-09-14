@@ -147,14 +147,14 @@ func (s *SubsetFontObj) AddChars(txt string) (string, error) {
 			if s.ttfFontOption.OnGlyphNotFound != nil {
 				s.ttfFontOption.OnGlyphNotFound(runeValue)
 			}
-			// AFWIJKING T.O.V. UPSTREAM: geen rune-substitutie. Upstream
-			// verving het teken via OnGlyphNotFoundSubstitute (default een
-			// spatie), waardoor zowel de getekende glyph als de breedte
-			// afweken. Reportlab mapt een teken buiten de cmap op glyph 0
-			// (.notdef) en rekent glyph 0's breedte. Empirisch bevestigd:
-			// splitString("A中B") -> codes [65, 0, 66], en
+			// DEVIATION FROM UPSTREAM: no rune substitution. Upstream
+			// replaced the character via OnGlyphNotFoundSubstitute (a space
+			// by default), which made both the drawn glyph and the width
+			// differ. Reportlab maps a character outside the cmap to glyph 0
+			// (.notdef) and counts glyph 0's width. Empirically confirmed:
+			// splitString("A中B") -> codes [65, 0, 66], and
 			// stringWidth("A中B") - stringWidth("AB") == defaultWidth*0.001*size.
-			// Zie VENDOR.md.
+			// See VENDOR.md.
 			s.CharacterToGlyphIndex.Set(runeValue, 0)
 			s.addCharsBuff = append(s.addCharsBuff, runeValue)
 			continue
@@ -229,7 +229,7 @@ func (s *SubsetFontObj) CharIndex(r rune) (uint, error) {
 
 // CharWidth with of char, in 1/1000 em.
 //
-// AFWIJKING T.O.V. UPSTREAM: retourtype uint -> float64, zie
+// DEVIATION FROM UPSTREAM: return type uint -> float64, see
 // GlyphIndexToPdfWidth.
 func (s *SubsetFontObj) CharWidth(r rune) (float64, error) {
 	glyIndex, ok := s.CharacterToGlyphIndex.Val(r)
@@ -288,12 +288,12 @@ func (s *SubsetFontObj) charCodeToGlyphIndexFormat4(r rune) (uint, error) {
 
 // CharCodeToGlyphIndex gets glyph index from char code.
 //
-// AFWIJKING T.O.V. UPSTREAM: NBSP/spatie-aliasing zoals reportlab die in
-// TTFontFile.extractInfo doet (pdfbase/ttfonts.py:880-885). Heeft het font een
-// spatie, dan krijgt U+00A0 diezelfde glyph — óók als het font een eigen
-// NBSP-glyph heeft; ontbreekt de spatie, dan geldt het omgekeerde. Zonder deze
-// alias liep een string van drie NBSP's in Lucida Sans tot 11,86pt uit de pas.
-// Empirisch bevestigd: splitString("\u00a0") -> code 32. Zie VENDOR.md.
+// DEVIATION FROM UPSTREAM: NBSP/space aliasing the way reportlab does it in
+// TTFontFile.extractInfo (pdfbase/ttfonts.py:880-885). If the font has a
+// space, U+00A0 gets that same glyph — even when the font has an NBSP glyph of
+// its own; if the space is missing, the reverse applies. Without this alias a
+// string of three NBSPs in Lucida Sans drifted out of step up to 11.86pt.
+// Empirically confirmed: splitString("\u00a0") -> code 32. See VENDOR.md.
 func (s *SubsetFontObj) CharCodeToGlyphIndex(r rune) (uint, error) {
 	switch r {
 	case '\u00a0':
@@ -311,8 +311,8 @@ func (s *SubsetFontObj) CharCodeToGlyphIndex(r rune) (uint, error) {
 	return s.charCodeToGlyphIndexRaw(r)
 }
 
-// charCodeToGlyphIndexRaw is de onveranderde upstream-lookup, zonder de
-// NBSP-alias hierboven.
+// charCodeToGlyphIndexRaw is the unchanged upstream lookup, without the NBSP
+// alias above.
 func (s *SubsetFontObj) charCodeToGlyphIndexRaw(r rune) (uint, error) {
 	value := uint64(r)
 	if value <= 0xFFFF {
@@ -331,12 +331,12 @@ func (s *SubsetFontObj) charCodeToGlyphIndexRaw(r rune) (uint, error) {
 
 // GlyphIndexToPdfWidth gets width from glyphIndex, in 1/1000 em.
 //
-// AFWIJKING T.O.V. UPSTREAM: reportlab-getrouwe schaling in float64. Upstream
-// rekende `width * 1000 / unitsPerEm` in uint en kapte dus af — mediaan 0,49
-// fonteenheden per teken, wat op een cel van 30 tekens @8pt al 0,12pt scheelt
-// en in de /W-array zichtbaar accumuleert. Reportlab
-// (pdfbase/ttfonts.py:572-576) berekent de factor 1000/upem als float en
-// vermenigvuldigt per glyph; bij upem==1000 schaalt het niet. Zie VENDOR.md.
+// DEVIATION FROM UPSTREAM: reportlab-faithful scaling in float64. Upstream
+// computed `width * 1000 / unitsPerEm` in uint and therefore truncated —
+// median 0.49 font units per character, which already costs 0.12pt on a cell
+// of 30 characters @8pt and accumulates visibly in the /W array. Reportlab
+// (pdfbase/ttfonts.py:572-576) computes the factor 1000/upem as a float and
+// multiplies per glyph; at upem==1000 it does not scale. See VENDOR.md.
 func (s *SubsetFontObj) GlyphIndexToPdfWidth(glyphIndex uint) float64 {
 
 	numberOfHMetrics := s.ttfp.NumberOfHMetrics()
@@ -352,11 +352,11 @@ func (s *SubsetFontObj) GlyphIndexToPdfWidth(glyphIndex uint) float64 {
 	return float64(width) * (1000.0 / float64(unitsPerEm))
 }
 
-// DefaultWidth is de breedte van glyph 0 (.notdef), in 1/1000 em.
+// DefaultWidth is the width of glyph 0 (.notdef), in 1/1000 em.
 //
-// TOEGEVOEGD T.O.V. UPSTREAM. Reportlab rekent deze breedte voor elk teken dat
-// niet in de cmap van het font zit (rl_accel.py:106 valt terug op
-// face.defaultWidth, dat in extractInfo op glyph 0 wordt gezet).
+// ADDED RELATIVE TO UPSTREAM. Reportlab counts this width for every character
+// that is not in the font's cmap (rl_accel.py:106 falls back to
+// face.defaultWidth, which extractInfo sets to glyph 0).
 func (s *SubsetFontObj) DefaultWidth() float64 {
 	return s.GlyphIndexToPdfWidth(0)
 }
